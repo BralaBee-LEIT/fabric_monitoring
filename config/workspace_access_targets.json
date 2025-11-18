@@ -1,0 +1,19 @@
+{
+  "description": "Security principals that must retain access to every Fabric workspace.",
+  "groups": [
+    {
+      "displayName": "EU-M365-SEC-EMEA-AZ-PBI-IT-ADMIN",
+      "objectId": "f21d0f2e-f041-4ccc-8a13-c05abfaa886c",
+      "role": "Admin",
+      "fabricPrincipalType": "AadGroup",
+      "powerBiPrincipalType": "Group"
+    },
+    {
+      "displayName": "EU-M365-SEC-EMEA-AZ-PBI-EDP-SUPPORT",
+      "objectId": "c1f65310-9bff-4feb-af93-535785d3003d",
+      "role": "Contributor",
+      "fabricPrincipalType": "AadGroup",
+      "powerBiPrincipalType": "Group"
+    }
+  ]
+}
