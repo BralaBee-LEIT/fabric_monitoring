@@ -75,7 +75,8 @@ def extract_real_daily_data(target_date, output_dir, workspace_ids=None, activit
         activities = extractor.get_daily_activities(
             date=target_date,
             workspace_ids=workspace_ids,
-            activity_types=activity_types
+            activity_types=activity_types,
+            tenant_wide=True  # Use tenant-wide Power BI Admin API
         )
         
         if not activities:

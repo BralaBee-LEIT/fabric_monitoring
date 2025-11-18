@@ -13,7 +13,7 @@ YELLOW = \033[1;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help create update delete status install test clean lint format check-env enforce-access
+.PHONY: help create update delete status install test clean lint format check-env enforce-access monitor-hub
 
 # Default target
 help:
@@ -32,12 +32,23 @@ help:
 	@echo "  $(GREEN)clean$(NC)       - Clean cache and temporary files"
 	@echo "  $(GREEN)export$(NC)      - Export current environment to new yml file"
 	@echo "  $(GREEN)enforce-access$(NC) - Ensure required groups keep workspace access"
+	@echo "  $(GREEN)monitor-hub$(NC) - Run Monitor Hub activity analysis"
 	@echo ""
 	@echo "$(YELLOW)Usage examples:$(NC)"
 	@echo "  make create       # Create new environment"
 	@echo "  make update       # Update existing environment"
 	@echo "  make delete       # Remove environment"
 	@echo "  make status       # Check environment status"
+	@echo ""
+	@echo "$(YELLOW)Enforcement examples:$(NC)"
+	@echo "  make enforce-access MODE=assess CSV_SUMMARY=1"
+	@echo "  make enforce-access MODE=enforce CONFIRM=1 API_PREFERENCE=powerbi"
+	@echo "  make enforce-access MODE=assess MAX_WORKSPACES=10"
+	@echo ""
+	@echo "$(YELLOW)Monitoring examples:$(NC)"
+	@echo "  make monitor-hub DAYS=7"
+	@echo "  make monitor-hub DAYS=30 MEMBER_ONLY=1"
+	@echo "  make monitor-hub DAYS=14 OUTPUT_DIR=exports/custom"
 
 # CREATE: Create new conda environment
 create:
@@ -184,7 +195,23 @@ enforce-access:
 		CONFIRM_ARG=$${CONFIRM:+--confirm}; \
 		DRY_RUN_ARG=$${DRY_RUN:+--dry-run}; \
 		CSV_ARG=$${CSV_SUMMARY:+--csv-summary}; \
-		conda run -n $(ENV_NAME) python enforce_workspace_access.py $$MODE_ARG $$CONFIRM_ARG $$DRY_RUN_ARG $$CSV_ARG; \
+		API_ARG=$${API_PREFERENCE:+--api-preference $$API_PREFERENCE}; \
+		MAX_WS_ARG=$${MAX_WORKSPACES:+--max-workspaces $$MAX_WORKSPACES}; \
+		INCLUDE_PERSONAL_ARG=$${INCLUDE_PERSONAL:+--include-personal-workspaces}; \
+		conda run -n $(ENV_NAME) python enforce_workspace_access.py $$MODE_ARG $$CONFIRM_ARG $$DRY_RUN_ARG $$CSV_ARG $$API_ARG $$MAX_WS_ARG $$INCLUDE_PERSONAL_ARG; \
+	else \
+		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
+		echo "$(YELLOW)Create it first with: make create$(NC)"; \
+	fi
+
+# Monitor Hub Analysis
+monitor-hub:
+	@echo "$(GREEN)Running Monitor Hub Analysis$(NC)"
+	@if conda env list | grep -q "^$(ENV_NAME) "; then \
+		DAYS_ARG=$${DAYS:+--days $$DAYS}; \
+		MEMBER_ONLY_ARG=$${MEMBER_ONLY:+--member-only}; \
+		OUTPUT_ARG=$${OUTPUT_DIR:+--output-dir $$OUTPUT_DIR}; \
+		conda run -n $(ENV_NAME) python monitor_hub_pipeline.py $$DAYS_ARG $$MEMBER_ONLY_ARG $$OUTPUT_ARG; \
 	else \
 		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
 		echo "$(YELLOW)Create it first with: make create$(NC)"; \

@@ -93,7 +93,8 @@ def extract_historical_data(start_date, end_date, output_dir, workspace_ids=None
                 daily_activities = extractor.get_daily_activities(
                     date=current_date,
                     workspace_ids=workspace_ids,
-                    activity_types=activity_types
+                    activity_types=activity_types,
+                    tenant_wide=True  # Use tenant-wide Power BI Admin API
                 )
                 
                 if daily_activities:
