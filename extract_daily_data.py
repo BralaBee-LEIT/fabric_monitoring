@@ -267,9 +267,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python extract_daily_data.py                           # Extract yesterday's data
+  python extract_daily_data.py                           # Extract yesterday's data (tenant-wide)
   python extract_daily_data.py --date 2025-11-14        # Extract specific date
-  python extract_daily_data.py --activities 100         # Generate 100 activities
+  python extract_daily_data.py --workspaces ws1,ws2     # Filter specific workspaces
+  python extract_daily_data.py --activity-types ViewReport,DataRefresh # Filter activity types
   python extract_daily_data.py --output-dir /custom/path # Custom output location
         """
     )
@@ -281,10 +282,15 @@ Examples:
     )
     
     parser.add_argument(
-        "--activities",
-        type=int,
-        default=50,
-        help="Number of activities to generate (default: 50)"
+        "--workspaces",
+        type=str,
+        help="Comma-separated list of workspace IDs to filter"
+    )
+    
+    parser.add_argument(
+        "--activity-types",
+        type=str,
+        help="Comma-separated list of activity types to filter"
     )
     
     parser.add_argument(
@@ -324,45 +330,52 @@ Examples:
         print(f"   API limit is {max_days} days. Please use a more recent date.")
         return 1
     
-    print("🚀 Simple Daily Data Extractor")
+    print("🚀 Fabric Daily Data Extractor (Tenant-Wide)")
     print(f"📅 Target Date: {target_date.strftime('%Y-%m-%d')} ({days_back} days ago)")
-    print(f"📊 Activities to Generate: {args.activities}")
     print(f"📁 Output Directory: {output_dir}")
     print(f"🔒 API Compliant: Max {max_days} days back")
+    if args.workspaces:
+        print(f"🎯 Filtering workspaces: {args.workspaces}")
+    if args.activity_types:
+        print(f"📊 Filtering activity types: {args.activity_types}")
     
     try:
-        # Generate activities (no complex API calls)
-        print(f"\n📥 Generating daily activities...")
-        activities = generate_daily_activities(target_date, args.activities)
-        print(f"   Generated {len(activities)} activities")
+        # Extract real activities from Fabric APIs
+        print(f"\n📥 Extracting real activities from Fabric APIs...")
         
-        # Calculate summary statistics
-        print(f"\n📊 Calculating statistics...")
-        summary_stats = calculate_summary_stats(activities, target_date)
-        print(f"   Success Rate: {summary_stats['success_rate_percent']}%")
-        print(f"   Total Duration: {summary_stats['total_duration_hours']} hours")
+        result = extract_real_daily_data(
+            target_date=target_date,
+            output_dir=output_dir,
+            workspace_ids=args.workspaces.split(',') if args.workspaces else None,
+            activity_types=args.activity_types.split(',') if args.activity_types else None
+        )
         
-        # Export to CSV files
-        print(f"\n📤 Exporting to CSV files...")
-        files_created = export_to_csv(activities, summary_stats, target_date, output_dir)
+        if result['status'] == 'error':
+            print(f"\n❌ Extraction failed: {result.get('message', 'Unknown error')}")
+            return 1
         
+        if result['status'] == 'no_data':
+            print(f"\n⚠️  {result.get('message', 'No data found')}")
+            return 0
+        
+        print(f"\n✅ Successfully extracted {result['total_activities']} activities")
         print(f"\n📋 Export Summary:")
-        print(f"   • Date: {target_date.strftime('%Y-%m-%d')}")
-        print(f"   • Total Activities: {summary_stats['total_activities']}")
-        print(f"   • Success Rate: {summary_stats['success_rate_percent']}%")
-        print(f"   • Files Created: {len(files_created)}")
-        print(f"   • Output Location: {Path(output_dir).absolute()}")
+        print(f"   • Date: {result['date']}")
+        print(f"   • Total Activities: {result['total_activities']}")
+        print(f"   • Failed Activities: {result['failed_activities']}")
+        print(f"   • Success Rate: {result['success_rate']}%")
+        print(f"   • Files Created: {len(result['files_created'])}")
         
         # List created files with sizes
         print(f"\n📄 Generated Files:")
-        for file_path in files_created:
+        for file_path in result['files_created']:
             file_size = Path(file_path).stat().st_size / 1024  # KB
             file_name = Path(file_path).name
             print(f"   • {file_name} ({file_size:.1f} KB)")
         
         print(f"\n✅ Daily data extraction completed successfully!")
-        print(f"   No infinite loops, no complex authentication.")
-        print(f"   Data saved to: {Path(output_dir).absolute()}")
+        print(f"   Data source: {result['source']}")
+        print(f"   Output location: {Path(output_dir).absolute()}")
         
         return 0
         
