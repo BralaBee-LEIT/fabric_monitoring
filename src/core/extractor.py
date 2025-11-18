@@ -65,25 +65,98 @@ class FabricDataExtractor:
         self._workspace_items_cache: Dict[str, Dict[str, Dict[str, Any]]] = {}
         self._workspace_lookup: Dict[str, Dict[str, Any]] = {}
     
-    def get_workspaces(self) -> List[Dict[str, Any]]:
+    def get_workspaces(self, tenant_wide: bool = False, exclude_personal: bool = True) -> List[Dict[str, Any]]:
         """
-        Get list of all accessible Fabric workspaces.
+        Get list of workspaces.
+        
+        Args:
+            tenant_wide: If True, uses Power BI Admin API to fetch ALL tenant workspaces.
+                        If False, uses member-only /v1/workspaces endpoint (legacy behavior).
+            exclude_personal: If True, filters out personal workspaces (type=PersonalGroup).
+                             Only applies when tenant_wide=True.
         
         Returns:
-            List of workspace dictionaries with id, name, and metadata
+            List of workspace dictionaries with id, name, and metadata.
+            - tenant_wide=False: ~139 workspaces (member-only)
+            - tenant_wide=True: ~286+ workspaces (all shared tenant workspaces)
+        """
+        if tenant_wide:
+            return self._get_workspaces_tenant_wide(exclude_personal=exclude_personal)
+        else:
+            return self._get_workspaces_member_only()
+    
+    def _get_workspaces_tenant_wide(self, exclude_personal: bool = True) -> List[Dict[str, Any]]:
+        """
+        Fetch ALL tenant workspaces using Power BI Admin API.
+        
+        This returns the complete workspace inventory across the entire tenant,
+        not just workspaces where the service principal is a member.
+        """
+        try:
+            workspaces = []
+            skip = 0
+            page_size = 200
+            
+            filter_clause = "$filter=type ne 'PersonalGroup'" if exclude_personal else ""
+            filter_param = f"&{filter_clause}" if filter_clause else ""
+            
+            self.logger.info("Fetching tenant-wide workspaces via Power BI Admin API")
+            
+            while True:
+                url = f"{self.powerbi_base_url}/v1.0/myorg/admin/groups?$top={page_size}&$skip={skip}{filter_param}"
+                headers = self.auth.get_powerbi_headers()
+                
+                self.logger.info(f"Fetching page at skip={skip}...")
+                response = self.session.get(url, headers=headers, timeout=self.timeout)
+                
+                if response.status_code == 429:
+                    retry_after = int(response.headers.get('Retry-After', 60))
+                    self.logger.warning(f"Rate limited. Waiting {retry_after} seconds...")
+                    raise requests.exceptions.RequestException(
+                        f"Rate limit exceeded. Retry after {retry_after} seconds."
+                    )
+                
+                response.raise_for_status()
+                data = response.json()
+                items = data.get("value", [])
+                
+                if not items:
+                    break
+                
+                workspaces.extend(items)
+                self.logger.info(f"Retrieved {len(items)} workspaces (total: {len(workspaces)})")
+                
+                if len(items) < page_size:
+                    break
+                
+                skip += page_size
+            
+            self.logger.info(f"Total tenant-wide workspaces retrieved: {len(workspaces)}")
+            return workspaces
+            
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Failed to fetch tenant-wide workspaces: {str(e)}")
+            raise
+    
+    def _get_workspaces_member_only(self) -> List[Dict[str, Any]]:
+        """
+        Fetch only workspaces where the service principal is a member.
+        
+        This is the legacy behavior using /v1/workspaces endpoint.
+        Returns ~139 workspaces (member-only, not tenant-wide).
         """
         try:
             url = f"{self.fabric_base_url}/{self.api_version}/workspaces"
             headers = self.auth.get_fabric_headers()
             
-            self.logger.info("Fetching Fabric workspaces")
+            self.logger.info("Fetching member workspaces (legacy behavior)")
             response = self.session.get(url, headers=headers, timeout=self.timeout)
             response.raise_for_status()
             
             data = response.json()
             workspaces = data.get("value", [])
             
-            self.logger.info(f"Retrieved {len(workspaces)} workspaces")
+            self.logger.info(f"Retrieved {len(workspaces)} member workspaces")
             return workspaces
             
         except requests.exceptions.RequestException as e:

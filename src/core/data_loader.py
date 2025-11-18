@@ -79,9 +79,20 @@ def load_activities_from_directory(export_dir: str) -> List[Dict[str, object]]:
 
 
 def _rename_columns(df: pd.DataFrame) -> pd.DataFrame:
-    rename_map = {col: target for col, target in RENAME_MAP.items() if col in df.columns}
-    if rename_map:
-        df = df.rename(columns=rename_map)
+    """Rename columns while coalescing duplicates targeting the same field."""
+
+    for source, target in RENAME_MAP.items():
+        if source not in df.columns:
+            continue
+
+        if target in df.columns and target != source:
+            # Prefer existing target data and only fill null gaps from the source column.
+            df[target] = df[target].where(df[target].notna(), df[source])
+            df = df.drop(columns=[source])
+            continue
+
+        df = df.rename(columns={source: target})
+
     return df
 
 

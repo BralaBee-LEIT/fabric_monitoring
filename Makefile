@@ -13,7 +13,7 @@ YELLOW = \033[1;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help create update delete status install test clean lint format check-env
+.PHONY: help create update delete status install test clean lint format check-env enforce-access
 
 # Default target
 help:
@@ -31,6 +31,7 @@ help:
 	@echo "  $(GREEN)format$(NC)      - Format code with black"
 	@echo "  $(GREEN)clean$(NC)       - Clean cache and temporary files"
 	@echo "  $(GREEN)export$(NC)      - Export current environment to new yml file"
+	@echo "  $(GREEN)enforce-access$(NC) - Ensure required groups keep workspace access"
 	@echo ""
 	@echo "$(YELLOW)Usage examples:$(NC)"
 	@echo "  make create       # Create new environment"
@@ -175,6 +176,19 @@ dev-setup: create install
 
 dev-check: lint test
 	@echo "$(GREEN)✅ Development checks passed!$(NC)"
+
+enforce-access:
+	@echo "$(GREEN)Running workspace access enforcement$(NC)"
+	@if conda env list | grep -q "^$(ENV_NAME) "; then \
+		MODE_ARG=$${MODE:+--mode $$MODE}; \
+		CONFIRM_ARG=$${CONFIRM:+--confirm}; \
+		DRY_RUN_ARG=$${DRY_RUN:+--dry-run}; \
+		CSV_ARG=$${CSV_SUMMARY:+--csv-summary}; \
+		conda run -n $(ENV_NAME) python enforce_workspace_access.py $$MODE_ARG $$CONFIRM_ARG $$DRY_RUN_ARG $$CSV_ARG; \
+	else \
+		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
+		echo "$(YELLOW)Create it first with: make create$(NC)"; \
+	fi
 
 # Quick commands
 .PHONY: c u d s
