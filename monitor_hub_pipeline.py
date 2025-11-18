@@ -56,13 +56,12 @@ class MonitorHubPipeline:
         
         self.logger.info("Monitor Hub Pipeline initialized")
     
-    def run_complete_analysis(self, days: int = 90, use_simulation: bool = True) -> Dict[str, Any]:
+    def run_complete_analysis(self, days: int = 90) -> Dict[str, Any]:
         """
         Run complete Monitor Hub analysis pipeline
         
         Args:
             days: Number of days of historical data to analyze
-            use_simulation: Unused (kept for CLI compatibility)
             
         Returns:
             Dictionary with analysis results and report file paths
@@ -289,10 +288,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python monitor_hub_pipeline.py                    # Run with defaults (90 days)
-  python monitor_hub_pipeline.py --days 30         # Analyze last 30 days
+  python monitor_hub_pipeline.py                    # Run with defaults (tenant-wide, 90 days)
+  python monitor_hub_pipeline.py --days 30         # Analyze last 30 days (all tenant workspaces)
+  python monitor_hub_pipeline.py --member-only     # Monitor only member workspaces (~139)
   python monitor_hub_pipeline.py --output exports/ # Custom output directory
-  python monitor_hub_pipeline.py --no-simulation   # Use real data only
         """
     )
     
@@ -311,9 +310,9 @@ Examples:
     )
     
     parser.add_argument(
-        "--no-simulation",
+        "--member-only",
         action="store_true",
-        help="Disable simulation mode (use real data only)"
+        help="Monitor only member workspaces (~139) instead of all tenant workspaces (~2187)"
     )
     
     args = parser.parse_args()
@@ -324,11 +323,11 @@ Examples:
     print("🚀 Starting Microsoft Fabric Monitor Hub Analysis Pipeline")
     print(f"   • Analysis Period: {args.days} days")
     print(f"   • Output Directory: {args.output_dir}")
-    print(f"   • Simulation Mode: {'Disabled' if args.no_simulation else 'Enabled'}")
+    print(f"   • Monitoring Scope: {'Member workspaces only (~139)' if args.member_only else 'All tenant workspaces (~2187)'}")
+    print(f"   • API Strategy: {'Per-workspace loop' if args.member_only else 'Tenant-wide Power BI Admin API'}")
     
     results = pipeline.run_complete_analysis(
-        days=args.days,
-        use_simulation=not args.no_simulation
+        days=args.days
     )
     
     pipeline.print_results_summary(results)
