@@ -260,15 +260,81 @@ class FabricDataExtractor:
             self.logger.error(f"Power BI API fallback also failed: {str(e)}")
             return []
     
-    def get_daily_activities(self, date: datetime, workspace_ids: Optional[List[str]] = None, 
-                           activity_types: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    def get_tenant_wide_activities(self, start_date: datetime, end_date: datetime, 
+                                  workspace_ids: Optional[List[str]] = None,
+                                  activity_types: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """
-        Get all activities for a specific date across specified workspaces.
+        Get ALL tenant activities using Power BI Admin Activity API (single call, no per-workspace loop).
+        
+        Args:
+            start_date: Start datetime for activity query
+            end_date: End datetime for activity query
+            workspace_ids: Optional list of workspace IDs to filter (applied post-fetch)
+            activity_types: Optional list of activity types to filter (applied post-fetch)
+            
+        Returns:
+            List of all tenant activities for the date range
+        """
+        try:
+            # Power BI Admin API requires ISO format with quotes
+            start_str = f"'{start_date.strftime('%Y-%m-%dT%H:%M:%S')}'"
+            end_str = f"'{end_date.strftime('%Y-%m-%dT%H:%M:%S')}'"
+            
+            url = f"{self.powerbi_base_url}/v1.0/myorg/admin/activityevents"
+            headers = self.auth.get_powerbi_headers()
+            
+            params = {
+                "startDateTime": start_str,
+                "endDateTime": end_str
+            }
+            
+            self.logger.info(f"Fetching tenant-wide activities from {start_date.strftime('%Y-%m-%d %H:%M:%S')} to {end_date.strftime('%Y-%m-%d %H:%M:%S')}")
+            response = self.session.get(url, headers=headers, params=params, timeout=self.timeout)
+            
+            if response.status_code == 429:
+                retry_after = int(response.headers.get('Retry-After', 60))
+                self.logger.warning(f"Rate limited. Retry after {retry_after} seconds.")
+                raise requests.exceptions.RequestException(f"Rate limit exceeded. Retry after {retry_after}s")
+            
+            response.raise_for_status()
+            data = response.json()
+            all_activities = data.get("activityEventEntities", [])
+            
+            self.logger.info(f"Retrieved {len(all_activities)} tenant-wide activities")
+            
+            # Filter by workspace IDs if specified
+            if workspace_ids:
+                all_activities = [
+                    activity for activity in all_activities
+                    if activity.get("WorkspaceId") in workspace_ids
+                ]
+                self.logger.info(f"Filtered to {len(all_activities)} activities for specified workspaces")
+            
+            # Filter by activity types if specified
+            if activity_types:
+                all_activities = [
+                    activity for activity in all_activities
+                    if activity.get("Activity") in activity_types
+                ]
+                self.logger.info(f"Filtered to {len(all_activities)} activities for specified types")
+            
+            return all_activities
+            
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Failed to fetch tenant-wide activities: {str(e)}")
+            raise
+    
+    def get_daily_activities(self, date: datetime, workspace_ids: Optional[List[str]] = None, 
+                           activity_types: Optional[List[str]] = None, tenant_wide: bool = True) -> List[Dict[str, Any]]:
+        """
+        Get all activities for a specific date.
         
         Args:
             date: Date to fetch activities for
-            workspace_ids: Optional list of workspace IDs (if None, fetch from all accessible workspaces)
+            workspace_ids: Optional list of workspace IDs to filter
             activity_types: Optional list of activity types to filter
+            tenant_wide: If True, uses Power BI Admin API (all tenant activities in one call).
+                        If False, uses per-workspace API (only member workspaces).
             
         Returns:
             List of all activities for the specified date
@@ -277,49 +343,82 @@ class FabricDataExtractor:
         start_date = date.replace(hour=0, minute=0, second=0, microsecond=0)
         end_date = start_date + timedelta(days=1) - timedelta(microseconds=1)
         
-        all_activities = []
-        
-        # Get workspaces to query
-        if workspace_ids:
-            all_workspaces = {ws["id"]: ws for ws in self.get_workspaces()}
-            target_workspaces = [all_workspaces.get(ws_id, {"id": ws_id}) for ws_id in workspace_ids]
-        else:
-            # Get all accessible workspaces
-            target_workspaces = self.get_workspaces()
-
-        self._workspace_lookup = {ws.get("id"): ws for ws in target_workspaces if ws.get("id")}
-        
-        self.logger.info(f"Fetching activities for {len(target_workspaces)} workspaces on {date.strftime('%Y-%m-%d')}")
-        
-        # Fetch activities for each workspace
-        for workspace in target_workspaces:
-            workspace_id = workspace.get("id")
-            if not workspace_id:
-                continue
+        if tenant_wide:
+            # Use Power BI Admin API to get ALL tenant activities in a single call
+            self.logger.info(f"Using tenant-wide Power BI Admin API for {date.strftime('%Y-%m-%d')}")
+            
+            # Fetch all tenant activities at once
+            all_activities = self.get_tenant_wide_activities(
+                start_date=start_date,
+                end_date=end_date,
+                workspace_ids=workspace_ids,
+                activity_types=activity_types
+            )
+            
+            # Get workspace metadata for enrichment
+            workspaces = self.get_workspaces(tenant_wide=True, exclude_personal=True)
+            self._workspace_lookup = {ws.get("id"): ws for ws in workspaces if ws.get("id")}
+            
+            # Enrich activities with workspace and item metadata
+            enriched_activities = []
+            for activity in all_activities:
+                workspace_id = activity.get("WorkspaceId")
+                if not workspace_id:
+                    continue
                 
-            try:
-                activities = self.get_workspace_activities(
-                    workspace_id=workspace_id,
-                    start_date=start_date,
-                    end_date=end_date,
-                    activity_types=activity_types
-                )
+                workspace_info = self._workspace_lookup.get(workspace_id, {"id": workspace_id, "name": "Unknown"})
+                enriched = self._enrich_activity(activity, workspace_id, workspace_info)
                 
-                item_lookup = self._get_workspace_items_lookup(workspace_id)
-
-                # Add workspace info to each activity and enrich with metadata
-                for activity in activities:
-                    enriched = self._enrich_activity(activity, workspace_id, workspace)
+                # Try to attach item metadata (optional, may fail for some workspaces)
+                try:
+                    item_lookup = self._get_workspace_items_lookup(workspace_id)
                     if item_lookup:
                         self._attach_item_metadata(enriched, workspace_id, item_lookup)
-                    all_activities.append(enriched)
+                except Exception:
+                    pass  # Skip item metadata if unavailable
                 
-            except Exception as e:
-                self.logger.warning(f"Failed to fetch activities for workspace {workspace_id}: {str(e)}")
-                continue
-        
-        self.logger.info(f"Total activities retrieved for {date.strftime('%Y-%m-%d')}: {len(all_activities)}")
-        return all_activities
+                enriched_activities.append(enriched)
+            
+            self.logger.info(f"Enriched {len(enriched_activities)} activities for {date.strftime('%Y-%m-%d')}")
+            return enriched_activities
+            
+        else:
+            # Legacy per-workspace loop (member workspaces only)
+            self.logger.info(f"Using per-workspace API for member workspaces on {date.strftime('%Y-%m-%d')}")
+            
+            all_activities = []
+            target_workspaces = self.get_workspaces(tenant_wide=False, exclude_personal=True)
+            self._workspace_lookup = {ws.get("id"): ws for ws in target_workspaces if ws.get("id")}
+            
+            self.logger.info(f"Fetching activities for {len(target_workspaces)} member workspaces")
+            
+            for workspace in target_workspaces:
+                workspace_id = workspace.get("id")
+                if not workspace_id:
+                    continue
+                    
+                try:
+                    activities = self.get_workspace_activities(
+                        workspace_id=workspace_id,
+                        start_date=start_date,
+                        end_date=end_date,
+                        activity_types=activity_types
+                    )
+                    
+                    item_lookup = self._get_workspace_items_lookup(workspace_id)
+
+                    for activity in activities:
+                        enriched = self._enrich_activity(activity, workspace_id, workspace)
+                        if item_lookup:
+                            self._attach_item_metadata(enriched, workspace_id, item_lookup)
+                        all_activities.append(enriched)
+                    
+                except Exception as e:
+                    self.logger.warning(f"Failed to fetch activities for workspace {workspace_id}: {str(e)}")
+                    continue
+            
+            self.logger.info(f"Total activities retrieved for {date.strftime('%Y-%m-%d')}: {len(all_activities)}")
+            return all_activities
     
     def get_workspace_items(self, workspace_id: str) -> List[Dict[str, Any]]:
         """
