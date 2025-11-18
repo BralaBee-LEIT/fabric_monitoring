@@ -1,0 +1,31 @@
+name: fabric-monitoring
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - requests
+  - pandas
+  - numpy
+  - plotly
+  - openpyxl
+  - aiohttp
+  - pyyaml
+  - jsonschema
+  - click
+  - rich
+  - typer
+  - pytest
+  - pytest-cov
+  - pytest-asyncio
+  - black
+  - flake8
+  - mypy
+  - jupyter
+  - notebook
+  - pip:
+    - python-dotenv
+    - azure-identity
+    - azure-storage-blob
+    - asyncio-throttle
