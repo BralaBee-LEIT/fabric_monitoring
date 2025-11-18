@@ -129,26 +129,7 @@ def extract_real_daily_data(target_date, output_dir, workspace_ids=None, activit
             "date": target_date.strftime('%Y-%m-%d'),
             "message": str(e),
             "files_created": []
-            "activity_id": f"act_{target_date.strftime('%Y%m%d')}_{i:03d}",
-            "workspace_id": f"ws_{(i % 5) + 1}",
-            "workspace_name": f"Workspace {(i % 5) + 1}",
-            "item_id": f"item_{(i % 8) + 1}",
-            "item_name": f"Data Item {(i % 8) + 1}",
-            "item_type": ["Lakehouse", "Report", "DataPipeline", "Dataset", "Dashboard", "Notebook", "Warehouse", "KQL Database"][i % 8],
-            "activity_type": ["DataRefresh", "ViewReport", "PipelineRun", "QueryExecution", "ItemUpdate", "DataExport", "ItemCreate", "ItemDelete"][i % 8],
-            "status": "Succeeded" if i % 5 != 0 else "Failed",
-            "start_time": activity_time.isoformat(),
-            "end_time": end_time.isoformat(),
-            "duration_seconds": (end_time - activity_time).total_seconds(),
-            "submitted_by": f"user{(i % 6) + 1}@company.com",
-            "created_by": f"admin{(i % 3) + 1}@company.com",
-            "domain": "company.com" if i % 3 != 0 else "partner.com",
-            "location": ["East US", "West US", "Central US", "North Europe", "Southeast Asia"][i % 5],
-            "capacity": f"capacity_{(i % 3) + 1}",
-            "is_simulated": True,
-            "extraction_date": datetime.now().strftime('%Y-%m-%d'),
-            "extraction_time": datetime.now().strftime('%H:%M:%S')
-        })
+        }
     
     return activities
 
