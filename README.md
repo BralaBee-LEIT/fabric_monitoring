@@ -1,0 +1,126 @@
+# Microsoft Fabric Monitoring & Governance System
+
+A comprehensive Python-based solution for monitoring, analyzing, and governing Microsoft Fabric workspaces. This project provides tools for historical activity analysis (Monitor Hub) and automated security group enforcement.
+
+## 🚀 Key Features
+
+### 1. Monitor Hub Analysis (`monitor_hub_pipeline.py`)
+- **Historical Data Extraction**: Retrieves up to 28 days of activity data (API limit compliant).
+- **Pagination Support**: Handles high-volume data (>5,000 events/day) using `continuationUri` to ensure zero data loss.
+- **Comprehensive Reporting**: Generates CSV reports on:
+  - Activity volume and success rates.
+  - Long-running operations.
+  - User and item-level usage patterns.
+  - Failure analysis.
+- **Scope Control**: Analyze all tenant workspaces or filter to specific subsets.
+
+### 2. Workspace Access Enforcement (`enforce_workspace_access.py`)
+- **Security Compliance**: Ensures required security groups are assigned to workspaces.
+- **Dual Modes**:
+  - `assess`: Dry-run mode to audit current permissions and identify gaps.
+  - `enforce`: Applies changes to add missing principals (requires confirmation).
+- **Flexible Targeting**: Configure target groups via JSON files.
+- **Suppression Support**: Whitelist specific workspaces to skip enforcement.
+
+## 📋 Prerequisites
+
+- **Python 3.11+**
+- **Conda** (for environment management)
+- **Microsoft Fabric Permissions**:
+  - Service Principal or User credentials with Fabric Admin rights.
+  - Access to the Power BI Activity Events API.
+
+## 🛠️ Installation & Setup
+
+This project uses a `Makefile` to simplify environment management.
+
+1.  **Clone the repository**:
+    ```bash
+    git clone <repository-url>
+    cd usf_fabric_monitoring
+    ```
+
+2.  **Create the environment**:
+    ```bash
+    make create
+    ```
+
+3.  **Configure Environment Variables**:
+    Copy the template and edit your settings.
+    ```bash
+    cp .env.template .env
+    ```
+    *Ensure you set `FABRIC_TOKEN`, `TENANT_ID`, and other auth details.*
+
+## ⚙️ Configuration
+
+The system is configured via the `.env` file. Key variables include:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MAX_HISTORICAL_DAYS` | `28` | Maximum days to extract (API limit). |
+| `DEFAULT_ANALYSIS_DAYS` | `7` | Default window for analysis. |
+| `EXPORT_DIRECTORY` | `exports/monitor_hub_analysis` | Output path for reports. |
+| `API_RATE_LIMIT_REQUESTS_PER_HOUR` | `180` | Rate limiting safety buffer. |
+
+## 📖 Usage Guide
+
+### Running Monitor Hub Analysis
+
+Analyze the last 7 days of activity across the tenant:
+```bash
+make monitor-hub
+```
+
+Analyze a specific window (e.g., 14 days) and output to a custom directory:
+```bash
+make monitor-hub DAYS=14 OUTPUT_DIR=exports/custom_report
+```
+
+### Enforcing Workspace Access
+
+**Audit Mode (Dry Run)**:
+Check which workspaces are missing required groups without making changes.
+```bash
+make enforce-access MODE=assess CSV_SUMMARY=1
+```
+
+**Enforcement Mode**:
+Apply changes to fix permission gaps.
+```bash
+make enforce-access MODE=enforce CONFIRM=1
+```
+
+### Development Commands
+
+- **Update Environment**: `make update` (after changing `environment.yml`)
+- **Run Tests**: `make test`
+- **Lint Code**: `make lint`
+- **Format Code**: `make format`
+- **Clean Cache**: `make clean`
+
+## 📂 Project Structure
+
+```text
+usf_fabric_monitoring/
+├── config/                 # Configuration files (targets, suppressions)
+├── docs/                   # Documentation
+├── exports/                # Generated reports and data
+├── src/                    # Source code
+│   ├── core/               # Core logic (extractors, enforcers)
+│   └── ...
+├── enforce_workspace_access.py  # Governance entry point
+├── monitor_hub_pipeline.py      # Monitoring entry point
+├── Makefile                # Command automation
+├── environment.yml         # Conda environment definition
+└── requirements.txt        # Pip dependencies
+```
+
+## ⚠️ Recent Updates (API Compliance)
+
+The system has been refactored to strictly adhere to Microsoft Fabric API limitations:
+- **28-Day Limit**: Historical extraction is capped at 28 days.
+- **Pagination**: Robust handling for days with >5,000 events.
+- **Rate Limiting**: Built-in throttling to prevent 429 errors.
+
+See `REFACTORING_SUMMARY.md` for more details.
