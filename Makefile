@@ -137,7 +137,7 @@ export:
 test:
 	@echo "$(GREEN)Running tests$(NC)"
 	@if conda env list | grep -q "^$(ENV_NAME) "; then \
-		conda run -n $(ENV_NAME) python -m pytest tests/ -v --cov=src/; \
+		conda run --no-capture-output -n $(ENV_NAME) python -m pytest tests/ -v --cov=src/; \
 	else \
 		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
 	fi
@@ -145,8 +145,8 @@ test:
 lint:
 	@echo "$(GREEN)Running linting checks$(NC)"
 	@if conda env list | grep -q "^$(ENV_NAME) "; then \
-		conda run -n $(ENV_NAME) flake8 src/ && \
-		conda run -n $(ENV_NAME) mypy src/; \
+		conda run --no-capture-output -n $(ENV_NAME) flake8 src/ && \
+		conda run --no-capture-output -n $(ENV_NAME) mypy src/; \
 	else \
 		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
 	fi
@@ -154,7 +154,7 @@ lint:
 format:
 	@echo "$(GREEN)Formatting code with black$(NC)"
 	@if conda env list | grep -q "^$(ENV_NAME) "; then \
-		conda run -n $(ENV_NAME) black src/ tests/; \
+		conda run --no-capture-output -n $(ENV_NAME) black src/ tests/; \
 	else \
 		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
 	fi
@@ -198,7 +198,7 @@ enforce-access:
 		API_ARG=$${API_PREFERENCE:+--api-preference $$API_PREFERENCE}; \
 		MAX_WS_ARG=$${MAX_WORKSPACES:+--max-workspaces $$MAX_WORKSPACES}; \
 		INCLUDE_PERSONAL_ARG=$${INCLUDE_PERSONAL:+--include-personal-workspaces}; \
-		conda run -n $(ENV_NAME) python enforce_workspace_access.py $$MODE_ARG $$CONFIRM_ARG $$DRY_RUN_ARG $$CSV_ARG $$API_ARG $$MAX_WS_ARG $$INCLUDE_PERSONAL_ARG; \
+		conda run --no-capture-output -n $(ENV_NAME) python enforce_workspace_access.py $$MODE_ARG $$CONFIRM_ARG $$DRY_RUN_ARG $$CSV_ARG $$API_ARG $$MAX_WS_ARG $$INCLUDE_PERSONAL_ARG; \
 	else \
 		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
 		echo "$(YELLOW)Create it first with: make create$(NC)"; \
@@ -211,7 +211,7 @@ monitor-hub:
 		DAYS_ARG=$${DAYS:+--days $$DAYS}; \
 		MEMBER_ONLY_ARG=$${MEMBER_ONLY:+--member-only}; \
 		OUTPUT_ARG=$${OUTPUT_DIR:+--output-dir $$OUTPUT_DIR}; \
-		conda run -n $(ENV_NAME) python monitor_hub_pipeline.py $$DAYS_ARG $$MEMBER_ONLY_ARG $$OUTPUT_ARG; \
+		conda run --no-capture-output -n $(ENV_NAME) python monitor_hub_pipeline.py $$DAYS_ARG $$MEMBER_ONLY_ARG $$OUTPUT_ARG; \
 	else \
 		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
 		echo "$(YELLOW)Create it first with: make create$(NC)"; \

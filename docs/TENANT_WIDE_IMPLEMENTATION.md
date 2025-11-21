@@ -54,6 +54,8 @@ python monitor_hub_pipeline.py --days 7
 
 # Member-only monitoring (~139 workspaces)
 python monitor_hub_pipeline.py --days 7 --member-only
+
+> **Note**: The CLI now provides real-time progress updates (e.g., `Fetched X activities...`) and immediate feedback, even when running via `make`.
 ```
 
 #### Makefile
@@ -268,6 +270,7 @@ Expected output: `Found 2187 workspaces` (or similar count)
 - Added `get_tenant_wide_activities()` method
 - Updated all extraction scripts to use tenant-wide by default
 - Added `--member-only` flag for backward compatibility
+- Improved CLI logging with real-time progress indicators and unbuffered output
 - Removed legacy simulation mode parameter
 - Updated Makefile with monitor-hub target
 
