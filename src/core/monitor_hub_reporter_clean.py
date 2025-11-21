@@ -88,6 +88,10 @@ class MonitorHubCSVReporter:
         daily_file = self._generate_daily_trends_report(analysis_results)
         report_files["daily_trends"] = daily_file
         
+        # 7. Compute & Failure Analysis Report
+        compute_file = self._generate_compute_analysis_report(historical_data["activities"])
+        report_files["compute_analysis"] = compute_file
+        
         self.logger.info(f"Generated {len(report_files)} comprehensive reports")
         return report_files
     
@@ -315,3 +319,92 @@ class MonitorHubCSVReporter:
             return "Medium"
         else:
             return "Low"
+            
+    def _generate_compute_analysis_report(self, activities: List[Dict[str, Any]]) -> str:
+        """
+        Generate detailed compute analysis report for Spark, Notebooks, and Pipelines.
+        Focuses on who ran what, success/failure rates, and duration.
+        """
+        if not activities:
+            return self._create_empty_report("compute_analysis")
+            
+        # Filter for compute-intensive items
+        compute_types = {'SparkJob', 'Notebook', 'DataPipeline', 'SparkJobDefinition', 'Lakehouse'}
+        compute_activities = [a for a in activities if a.get("item_type") in compute_types]
+        
+        if not compute_activities:
+            return self._create_empty_report("compute_analysis")
+            
+        df = pd.DataFrame(compute_activities)
+        
+        # Ensure required columns exist
+        required_cols = ["submitted_by", "item_name", "item_type", "status", "duration_seconds", "start_time"]
+        for col in required_cols:
+            if col not in df.columns:
+                df[col] = None
+                
+        # Group by User, Item Name, Item Type, and Status
+        # We want to see: User X ran Notebook Y -> Success (5 times), Failed (2 times)
+        
+        # First, fill missing values
+        df["submitted_by"] = df["submitted_by"].fillna("Unknown")
+        df["item_name"] = df["item_name"].fillna("Unknown")
+        df["status"] = df["status"].fillna("Unknown")
+        df["duration_seconds"] = df["duration_seconds"].fillna(0)
+        
+        # Aggregate
+        summary = df.groupby(["submitted_by", "item_name", "item_type", "status"]).agg(
+            count=("activity_id", "count"),
+            avg_duration=("duration_seconds", "mean"),
+            total_duration=("duration_seconds", "sum"),
+            last_run=("start_time", "max")
+        ).reset_index()
+        
+        # Pivot to have Success/Failed counts in columns if possible, or just keep as list
+        # For a cleaner report, let's re-aggregate to have one row per User+Item
+        
+        final_data = []
+        
+        # Group by User + Item to calculate rates
+        grouped = df.groupby(["submitted_by", "item_name", "item_type"])
+        
+        for (user, item, type_), group in grouped:
+            total_runs = len(group)
+            failed_runs = len(group[group["status"] == "Failed"])
+            success_runs = len(group[group["status"] == "Succeeded"])
+            
+            avg_duration = group["duration_seconds"].mean()
+            total_duration = group["duration_seconds"].sum()
+            last_run = group["start_time"].max()
+            
+            # Identify most common error if any failures
+            error_msg = ""
+            if failed_runs > 0:
+                # If we had error messages in the logs, we'd extract them here.
+                # For now, we just note it failed.
+                pass
+                
+            final_data.append({
+                "User": user,
+                "Item Name": item,
+                "Item Type": type_,
+                "Total Runs": total_runs,
+                "Successful Runs": success_runs,
+                "Failed Runs": failed_runs,
+                "Failure Rate %": round((failed_runs / total_runs) * 100, 1),
+                "Avg Duration (s)": round(avg_duration, 1),
+                "Total Duration (s)": round(total_duration, 1),
+                "Last Run Time": last_run
+            })
+            
+        results_df = pd.DataFrame(final_data)
+        
+        # Sort by Failure Rate (desc) then Total Runs (desc) to highlight issues
+        results_df = results_df.sort_values(["Failure Rate %", "Total Runs"], ascending=[False, False])
+        
+        filename = f"compute_analysis_{self.report_timestamp}.csv"
+        filepath = self.export_directory / filename
+        results_df.to_csv(filepath, index=False)
+        
+        self.logger.info(f"Generated compute analysis report: {filename}")
+        return str(filepath)

@@ -33,6 +33,8 @@ help:
 	@echo "  $(GREEN)export$(NC)      - Export current environment to new yml file"
 	@echo "  $(GREEN)enforce-access$(NC) - Ensure required groups keep workspace access"
 	@echo "  $(GREEN)monitor-hub$(NC) - Run Monitor Hub activity analysis"
+	@echo "  $(GREEN)extract-lineage$(NC) - Extract Mirrored Database lineage"
+	@echo "  $(GREEN)compute-analysis$(NC) - Run Compute Analysis (alias for monitor-hub)"
 	@echo ""
 	@echo "$(YELLOW)Usage examples:$(NC)"
 	@echo "  make create       # Create new environment"
@@ -223,3 +225,17 @@ c: create
 u: update  
 d: delete
 s: status
+
+# Lineage Extraction
+extract-lineage:
+	@echo "$(GREEN)Running Mirrored Database Lineage Extraction$(NC)"
+	@if conda env list | grep -q "^$(ENV_NAME) "; then \
+		OUTPUT_ARG=$${OUTPUT_DIR:+--output-dir $$OUTPUT_DIR}; \
+		conda run --no-capture-output -n $(ENV_NAME) python src/scripts/extract_lineage.py $$OUTPUT_ARG; \
+	else \
+		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
+		echo "$(YELLOW)Create it first with: make create$(NC)"; \
+	fi
+
+# Compute Analysis (Alias for monitor-hub)
+compute-analysis: monitor-hub
