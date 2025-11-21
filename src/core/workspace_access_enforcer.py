@@ -116,6 +116,7 @@ class WorkspaceAccessEnforcer:
         *,
         workspace_filter: Optional[Iterable[str]] = None,
         max_workspaces: Optional[int] = None,
+        fabric_only: bool = False,
     ) -> Dict[str, Any]:
         """Execute the enforcement workflow."""
 
@@ -123,12 +124,18 @@ class WorkspaceAccessEnforcer:
         self.logger.info("Starting workspace access enforcement")
         self.logger.info(f"API preference: {self.api_preference}")
         self.logger.info(f"Exclude personal workspaces: {self.exclude_personal_workspaces}")
+        self.logger.info(f"Fabric workspaces only: {fabric_only}")
         self.logger.info(f"Dry run: {self.dry_run}")
         self.logger.info("="*60)
 
         workspaces = self._fetch_workspaces()
         self.logger.info(f"Total workspaces retrieved: {len(workspaces)}")
         
+        if fabric_only:
+            original_count = len(workspaces)
+            workspaces = [ws for ws in workspaces if self._is_fabric_workspace(ws)]
+            self.logger.info(f"Filtered to {len(workspaces)} Fabric workspaces (from {original_count})")
+
         if workspace_filter:
             filter_tokens = {str(token).lower() for token in workspace_filter if str(token).strip()}
             workspaces = [
@@ -163,6 +170,19 @@ class WorkspaceAccessEnforcer:
         self.logger.info("="*60)
 
         return summary
+
+    def _is_fabric_workspace(self, workspace: Dict[str, Any]) -> bool:
+        """Determine if a workspace is a Fabric/Premium workspace."""
+        # Check for capacityId (Fabric/Premium)
+        capacity_id = workspace.get("capacityId")
+        if capacity_id and capacity_id != "00000000-0000-0000-0000-000000000000":
+            return True
+            
+        # Check for isOnDedicatedCapacity (Power BI Premium/Fabric)
+        if workspace.get("isOnDedicatedCapacity"):
+            return True
+            
+        return False
 
     @staticmethod
     def load_access_requirements(path: Path) -> Sequence[AccessRequirement]:
@@ -221,37 +241,40 @@ class WorkspaceAccessEnforcer:
                         "id": workspace_id,
                         "name": item.get("name") or "Unnamed",
                         "sources": [],
+                        "capacityId": item.get("capacityId"),
+                        "isOnDedicatedCapacity": item.get("isOnDedicatedCapacity", False),
                     },
                 )
                 if item.get("name"):
                     entry["name"] = item["name"]
+                # Update capacity info if available and not already set
+                if item.get("capacityId"):
+                    entry["capacityId"] = item["capacityId"]
+                if item.get("isOnDedicatedCapacity"):
+                    entry["isOnDedicatedCapacity"] = True
+                    
                 entry["sources"].append(source)
 
         # For tenant-wide enforcement, use ONLY admin APIs (Fabric/Power BI)
         # Do NOT use legacy extractor - it only returns member workspaces (~139)
         # We need ALL tenant workspaces (~286+) to enforce security policies
         
+        sources_to_fetch = []
         if self.api_preference in {"auto", "fabric"}:
-            try:
-                fabric = self._fetch_fabric_workspaces()
-                record(fabric, "fabric")
-                self.logger.info(
-                    "Collected %s workspaces via Fabric admin endpoint", len(fabric)
-                )
-            except WorkspaceAccessError as exc:
-                errors.append(f"fabric: {exc}")
-                self.logger.warning("Fabric admin endpoint unavailable: %s", exc)
-
+            sources_to_fetch.append(("fabric", self._fetch_fabric_workspaces))
         if self.api_preference in {"auto", "powerbi"}:
+            sources_to_fetch.append(("powerbi", self._fetch_powerbi_workspaces))
+
+        for source_name, fetch_func in sources_to_fetch:
             try:
-                powerbi = self._fetch_powerbi_workspaces()
-                record(powerbi, "powerbi")
+                items = fetch_func()
+                record(items, source_name)
                 self.logger.info(
-                    "Collected %s workspaces via Power BI admin endpoint", len(powerbi)
+                    "Collected %s workspaces via %s admin endpoint", len(items), source_name.title()
                 )
             except WorkspaceAccessError as exc:
-                errors.append(f"powerbi: {exc}")
-                self.logger.warning("Power BI admin endpoint unavailable: %s", exc)
+                errors.append(f"{source_name}: {exc}")
+                self.logger.warning("%s admin endpoint unavailable: %s", source_name.title(), exc)
 
         if not aggregated:
             joined = "; ".join(errors) or "No workspace sources succeeded"
@@ -269,6 +292,8 @@ class WorkspaceAccessEnforcer:
                     "id": entry["id"],
                     "name": entry["name"],
                     "source": self._select_workspace_source(sources),
+                    "capacityId": entry.get("capacityId"),
+                    "isOnDedicatedCapacity": entry.get("isOnDedicatedCapacity", False),
                 }
             )
 
@@ -326,6 +351,7 @@ class WorkspaceAccessEnforcer:
                         "id": item.get("id"),
                         "name": item.get("displayName") or item.get("name", "Unnamed"),
                         "source": "fabric",
+                        "capacityId": item.get("capacityId"),
                     }
                 )
             url = payload.get("nextLink") or payload.get("@odata.nextLink")
@@ -377,6 +403,8 @@ class WorkspaceAccessEnforcer:
                         "id": item.get("id"),
                         "name": item.get("name", "Unnamed"),
                         "source": "powerbi",
+                        "capacityId": item.get("capacityId"),
+                        "isOnDedicatedCapacity": item.get("isOnDedicatedCapacity", False),
                     }
                 )
             
@@ -449,13 +477,17 @@ class WorkspaceAccessEnforcer:
 
     def _fetch_workspace_users(self, workspace_id: str) -> List[Dict[str, Any]]:
         errors: List[str] = []
-        use_fabric = self.api_preference in {"auto", "fabric"}
-        use_powerbi = self.api_preference in {"auto", "powerbi"}
+        
+        sources = []
+        if self.api_preference in {"auto", "fabric"}:
+            sources.append(("fabric", self.fabric_users_template, True))
+        if self.api_preference in {"auto", "powerbi"}:
+            sources.append(("powerbi", self.pbi_users_template, False))
 
-        if use_fabric:
-            url = self.fabric_users_template.format(workspace_id=workspace_id)
+        for source_name, url_template, use_fabric in sources:
+            url = url_template.format(workspace_id=workspace_id)
             try:
-                payload = self._get_json(url, use_fabric=True)
+                payload = self._get_json(url, use_fabric=use_fabric)
                 return payload.get("value", payload.get("users", []))
             except WorkspaceAccessError as exc:
                 if getattr(exc, "status_code", None) == 404:
@@ -464,26 +496,10 @@ class WorkspaceAccessEnforcer:
                         workspace_id,
                     )
                     return []
-                errors.append(f"fabric: {exc}")
+                errors.append(f"{source_name}: {exc}")
                 self.logger.warning(
-                    "Fabric user lookup failed for workspace %s: %s", workspace_id, exc
-                )
-
-        if use_powerbi:
-            url = self.pbi_users_template.format(workspace_id=workspace_id)
-            try:
-                payload = self._get_json(url, use_fabric=False)
-                return payload.get("value", payload.get("users", []))
-            except WorkspaceAccessError as exc:
-                if getattr(exc, "status_code", None) == 404:
-                    self.logger.warning(
-                        "Workspace %s no longer exists (404); skipping user evaluation",
-                        workspace_id,
-                    )
-                    return []
-                errors.append(f"powerbi: {exc}")
-                self.logger.warning(
-                    "Power BI user lookup failed for workspace %s: %s", workspace_id, exc
+                    "%s user lookup failed for workspace %s: %s", 
+                    source_name.title(), workspace_id, exc
                 )
 
         if errors:
@@ -507,56 +523,45 @@ class WorkspaceAccessEnforcer:
             return action_summary
 
         errors: List[str] = []
-        use_fabric = self.api_preference in {"auto", "fabric"}
-        use_powerbi = self.api_preference in {"auto", "powerbi"}
+        
+        sources = []
+        if self.api_preference in {"auto", "fabric"}:
+            sources.append(("fabric", self.fabric_users_template, True))
+        if self.api_preference in {"auto", "powerbi"}:
+            sources.append(("powerbi", self.pbi_users_template, False))
 
-        if use_fabric:
-            url = self.fabric_users_template.format(workspace_id=workspace_id)
-            payload = {
-                "userObjectId": requirement.object_id,
-                "role": requirement.role,
-                "principalType": requirement.fabric_principal_type,
-            }
+        for source_name, url_template, use_fabric in sources:
+            url = url_template.format(workspace_id=workspace_id)
+            
+            if use_fabric:
+                payload = {
+                    "userObjectId": requirement.object_id,
+                    "role": requirement.role,
+                    "principalType": requirement.fabric_principal_type,
+                }
+            else:
+                payload = {
+                    "identifier": requirement.object_id,
+                    "groupUserAccessRight": requirement.role,
+                    "principalType": requirement.powerbi_principal_type,
+                }
+
             try:
-                self._request("POST", url, use_fabric=True, json=payload, expected_status=(200, 201))
+                self._request("POST", url, use_fabric=use_fabric, json=payload, expected_status=(200, 201))
                 self.logger.info(
-                    "Granted %s role to %s via Fabric API for workspace %s",
+                    "Granted %s role to %s via %s API for workspace %s",
                     requirement.role,
                     requirement.display_name,
+                    source_name.title(),
                     workspace_id,
                 )
-                action_summary["action"] = "added_via_fabric"
+                action_summary["action"] = f"added_via_{source_name}"
                 return action_summary
             except WorkspaceAccessError as exc:
-                errors.append(f"fabric: {exc}")
+                errors.append(f"{source_name}: {exc}")
                 self.logger.warning(
-                    "Fabric assignment failed for workspace %s (%s): %s",
-                    workspace_id,
-                    requirement.display_name,
-                    exc,
-                )
-
-        if use_powerbi:
-            url = self.pbi_users_template.format(workspace_id=workspace_id)
-            payload = {
-                "identifier": requirement.object_id,
-                "groupUserAccessRight": requirement.role,
-                "principalType": requirement.powerbi_principal_type,
-            }
-            try:
-                self._request("POST", url, use_fabric=False, json=payload, expected_status=(200, 201))
-                self.logger.info(
-                    "Granted %s role to %s via Power BI API for workspace %s",
-                    requirement.role,
-                    requirement.display_name,
-                    workspace_id,
-                )
-                action_summary["action"] = "added_via_powerbi"
-                return action_summary
-            except WorkspaceAccessError as exc:
-                errors.append(f"powerbi: {exc}")
-                self.logger.warning(
-                    "Power BI assignment failed for workspace %s (%s): %s",
+                    "%s assignment failed for workspace %s (%s): %s",
+                    source_name.title(),
                     workspace_id,
                     requirement.display_name,
                     exc,

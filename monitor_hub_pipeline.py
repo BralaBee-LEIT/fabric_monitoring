@@ -19,6 +19,7 @@ Usage:
 import os
 import sys
 import logging
+from logging.handlers import TimedRotatingFileHandler
 import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -84,6 +85,10 @@ class MonitorHubPipeline:
                 message = extraction_result.get("message", "Historical extraction failed")
                 self.logger.warning(message)
                 return {"status": "error", "message": message, "report_files": {}}
+
+            print("\n" + "="*40)
+            print("✅ Extraction Complete. Starting Analysis...")
+            print("="*40 + "\n")
 
             self.logger.info("Step 2: Loading enriched activity exports")
             activities = load_activities_from_directory(str(extraction_dir))
@@ -240,7 +245,13 @@ class MonitorHubPipeline:
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             handlers=[
                 logging.StreamHandler(sys.stdout),
-                logging.FileHandler('monitor_hub_pipeline.log')
+                TimedRotatingFileHandler(
+                    'monitor_hub_pipeline.log',
+                    when='midnight',
+                    interval=1,
+                    backupCount=30,
+                    encoding='utf-8'
+                )
             ],
             force=True
         )

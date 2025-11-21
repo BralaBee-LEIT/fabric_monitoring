@@ -10,6 +10,7 @@ import os
 import sys
 import argparse
 import logging
+from logging.handlers import TimedRotatingFileHandler
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -24,15 +25,22 @@ from core.csv_exporter import CSVExporter
 
 def setup_logging():
     """Setup logging configuration."""
+    Path("logs").mkdir(exist_ok=True)
+    
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(),
-            logging.FileHandler('logs/historical_extraction.log')
+            TimedRotatingFileHandler(
+                'logs/historical_extraction.log',
+                when='midnight',
+                interval=1,
+                backupCount=30,
+                encoding='utf-8'
+            )
         ]
     )
-    Path("logs").mkdir(exist_ok=True)
 
 
 def extract_historical_data(start_date, end_date, output_dir, workspace_ids=None, activity_types=None):
@@ -82,6 +90,10 @@ def extract_historical_data(start_date, end_date, output_dir, workspace_ids=None
         failed_days = []
         total_activities = 0
         
+        # Initialize exporter
+        exporter = CSVExporter(export_base_path=output_dir)
+        files_created = []
+        
         logger.info(f"📥 Extracting activities for {days_span} days...")
         
         current_date = start_date
@@ -101,7 +113,13 @@ def extract_historical_data(start_date, end_date, output_dir, workspace_ids=None
                 if daily_activities:
                     activities_by_date[date_str] = daily_activities
                     total_activities += len(daily_activities)
-                    msg = f"  ✓ {date_str}: {len(daily_activities)} activities"
+                    
+                    # Export immediately for persistence
+                    activities_file = exporter.export_daily_activities(daily_activities, current_date)
+                    summary_file = exporter.export_activity_summary(daily_activities, current_date)
+                    files_created.extend([activities_file, summary_file])
+                    
+                    msg = f"  ✓ {date_str}: {len(daily_activities)} activities (Exported)"
                     logger.info(msg)
                     print(msg, flush=True)
                 else:
@@ -127,22 +145,8 @@ def extract_historical_data(start_date, end_date, output_dir, workspace_ids=None
                 "files_created": []
             }
         
-        # Export each day to separate CSV files
+        # Log completion
         logger.info(f"✅ Retrieved {total_activities} REAL activities across {days_span} days")
-        logger.info("📤 Exporting to CSV files (one per day)...")
-        
-        exporter = CSVExporter(export_base_path=output_dir)
-        
-        files_created = []
-        
-        # Export each day separately
-        for date_str, activities in activities_by_date.items():
-            if activities:
-                date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-                activities_file = exporter.export_daily_activities(activities, date_obj)
-                summary_file = exporter.export_activity_summary(activities, date_obj)
-                files_created.extend([activities_file, summary_file])
-                logger.info(f"  ✓ Exported {date_str}: {len(activities)} activities")
         
         return {
             "status": "success",

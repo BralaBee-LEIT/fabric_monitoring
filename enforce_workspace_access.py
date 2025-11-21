@@ -110,6 +110,11 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         action="store_true",
         help="Include personal workspaces (type=PersonalGroup) in enforcement. Default: exclude them to reduce API calls and rate limits.",
     )
+    parser.add_argument(
+        "--fabric-only",
+        action="store_true",
+        help="Only enforce on Fabric/Premium workspaces (workspaces assigned to a capacity).",
+    )
 
     return parser.parse_args(argv)
 
@@ -244,6 +249,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         summary = enforcer.enforce(
             workspace_filter=args.workspace,
             max_workspaces=args.max_workspaces,
+            fabric_only=args.fabric_only,
         )
         summary["mode"] = args.mode
         metrics = derive_report_metrics(summary)

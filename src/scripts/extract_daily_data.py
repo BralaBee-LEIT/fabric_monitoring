@@ -10,6 +10,7 @@ import os
 import sys
 import argparse
 import logging
+from logging.handlers import TimedRotatingFileHandler
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -24,6 +25,9 @@ from core.csv_exporter import CSVExporter
 
 def setup_logging():
     """Setup basic logging configuration."""
+    # Create logs directory
+    Path("logs").mkdir(exist_ok=True)
+
     # Ensure stdout is line-buffered for immediate output
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(line_buffering=True)
@@ -33,12 +37,16 @@ def setup_logging():
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler('logs/daily_extraction.log')
+            TimedRotatingFileHandler(
+                'logs/daily_extraction.log',
+                when='midnight',
+                interval=1,
+                backupCount=30,
+                encoding='utf-8'
+            )
         ]
     )
     
-    # Create logs directory
-    Path("logs").mkdir(exist_ok=True)
 
 
 def extract_real_daily_data(target_date, output_dir, workspace_ids=None, activity_types=None):
