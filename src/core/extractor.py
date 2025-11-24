@@ -536,7 +536,13 @@ class FabricDataExtractor:
         activity["Location"] = activity.get("Location") or infer_location(workspace)
         
         # Normalize status
-        activity["Status"] = normalize_status(activity.get("Status") or activity.get("status"))
+        # API uses 'IsSuccess' boolean, but sometimes 'Status' string might exist in other contexts
+        is_success = activity.get("IsSuccess")
+        if is_success is not None:
+            activity["Status"] = "Succeeded" if is_success else "Failed"
+        else:
+            # Fallback to existing Status field or default
+            activity["Status"] = normalize_status(activity.get("Status") or activity.get("status"))
 
         return activity
 

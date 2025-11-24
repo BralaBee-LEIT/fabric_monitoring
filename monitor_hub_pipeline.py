@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from scripts.extract_historical_data import extract_historical_data as run_historical_extraction
 from core.data_loader import load_activities_from_directory
 from core.monitor_hub_reporter_clean import MonitorHubCSVReporter
+from core.logger import setup_logging
 
 
 class MonitorHubPipeline:
@@ -43,7 +44,10 @@ class MonitorHubPipeline:
     
     def __init__(self, output_directory: str = None):
         """Initialize the pipeline"""
-        self.logger = self._setup_logging()
+        self.logger = setup_logging(
+            name=__name__,
+            log_file='monitor_hub_pipeline.log'
+        )
         
         # Use environment configuration for output directory
         if output_directory is None:
@@ -233,29 +237,6 @@ class MonitorHubPipeline:
             "items": list(item_lookup.values()),
             "activities": activities
         }
-    
-    def _setup_logging(self) -> logging.Logger:
-        """Setup logging configuration"""
-        # Ensure stdout is line-buffered for immediate output
-        if hasattr(sys.stdout, 'reconfigure'):
-            sys.stdout.reconfigure(line_buffering=True)
-
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.StreamHandler(sys.stdout),
-                TimedRotatingFileHandler(
-                    'monitor_hub_pipeline.log',
-                    when='midnight',
-                    interval=1,
-                    backupCount=30,
-                    encoding='utf-8'
-                )
-            ],
-            force=True
-        )
-        return logging.getLogger(__name__)
     
     def print_results_summary(self, results: Dict[str, Any]) -> None:
         """Print formatted results summary"""

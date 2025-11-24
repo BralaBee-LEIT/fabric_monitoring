@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from core.workspace_access_enforcer import WorkspaceAccessEnforcer, WorkspaceAccessError
+from core.logger import setup_logging
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -119,22 +120,6 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def configure_logging(level: str) -> None:
-    import sys
-    
-    # Configure logging with unbuffered stdout for real-time visibility
-    logging.basicConfig(
-        level=getattr(logging, level.upper(), logging.INFO),
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-        stream=sys.stdout,
-        force=True,
-    )
-    
-    # Ensure stdout is line-buffered for immediate output
-    if hasattr(sys.stdout, 'reconfigure'):
-        sys.stdout.reconfigure(line_buffering=True)
-
-
 def write_summary(summary: dict, destination: Path) -> Path:
     destination.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -219,9 +204,11 @@ def derive_report_metrics(summary: dict) -> dict:
 def main(argv: Optional[Iterable[str]] = None) -> int:
     load_dotenv()
     args = parse_args(argv)
-    configure_logging(args.log_level)
-
-    logger = logging.getLogger("workspace_enforcer")
+    
+    logger = setup_logging(
+        name="workspace_enforcer",
+        level=getattr(logging, args.log_level.upper(), logging.INFO)
+    )
 
     try:
         effective_dry_run = args.dry_run

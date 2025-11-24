@@ -36,6 +36,7 @@ help:
 	@echo "  $(GREEN)extract-lineage$(NC) - Extract Mirrored Database lineage"
 	@echo "  $(GREEN)compute-analysis$(NC) - Run Compute Analysis (alias for monitor-hub)"
 	@echo "  $(GREEN)generate-reports$(NC) - Generate reports from existing extracted data"
+	@echo "  $(GREEN)audit-sp-access$(NC)  - Audit workspaces where Service Principal is missing"
 	@echo ""
 	@echo "$(YELLOW)Usage examples:$(NC)"
 	@echo "  make create       # Create new environment"
@@ -246,6 +247,16 @@ generate-reports:
 	@echo "$(GREEN)Generating reports from existing data$(NC)"
 	@if conda env list | grep -q "^$(ENV_NAME) "; then \
 		conda run --no-capture-output -n $(ENV_NAME) python generate_reports_manual.py; \
+	else \
+		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
+		echo "$(YELLOW)Create it first with: make create$(NC)"; \
+	fi
+
+# Audit Service Principal Access
+audit-sp-access:
+	@echo "$(GREEN)Auditing Service Principal access to workspaces$(NC)"
+	@if conda env list | grep -q "^$(ENV_NAME) "; then \
+		conda run --no-capture-output -n $(ENV_NAME) python audit_sp_access.py; \
 	else \
 		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
 		echo "$(YELLOW)Create it first with: make create$(NC)"; \

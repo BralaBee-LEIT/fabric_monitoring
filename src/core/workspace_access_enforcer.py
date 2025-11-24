@@ -26,7 +26,7 @@ LOGGER = logging.getLogger(__name__)
 FABRIC_WORKSPACES_ENDPOINT = "https://api.fabric.microsoft.com/v1/admin/workspaces"
 FABRIC_USERS_ENDPOINT_TEMPLATE = "https://api.fabric.microsoft.com/v1/workspaces/{workspace_id}/users"
 POWER_BI_GROUPS_ENDPOINT = "https://api.powerbi.com/v1.0/myorg/admin/groups"
-POWER_BI_GROUP_USERS_TEMPLATE = "https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}/users"
+POWER_BI_GROUP_USERS_TEMPLATE = "https://api.powerbi.com/v1.0/myorg/admin/groups/{workspace_id}/users"
 
 
 @dataclass
@@ -105,7 +105,7 @@ class WorkspaceAccessEnforcer:
 
         self.request_timeout = int(os.getenv("FABRIC_ENFORCER_TIMEOUT", "30"))
         self.max_retries = int(os.getenv("FABRIC_ENFORCER_MAX_RETRIES", "3"))
-        self.page_size = int(os.getenv("FABRIC_ENFORCER_PAGE_SIZE", "200"))
+        self.page_size = int(os.getenv("FABRIC_ENFORCER_PAGE_SIZE", "100"))
         self.exclude_personal_workspaces = exclude_personal_workspaces
 
     # ------------------------------------------------------------------
@@ -346,6 +346,10 @@ class WorkspaceAccessEnforcer:
             payload = self._get_json(url, use_fabric=True)
             items = payload.get("value", [])
             for item in items:
+                # Skip inactive workspaces (Deleted, RemovalPending, etc.)
+                if item.get("state") and item.get("state") != "Active":
+                    continue
+
                 workspaces.append(
                     {
                         "id": item.get("id"),
@@ -398,6 +402,10 @@ class WorkspaceAccessEnforcer:
                 break
                 
             for item in items:
+                # Skip inactive workspaces
+                if item.get("state") and item.get("state") != "Active":
+                    continue
+
                 workspaces.append(
                     {
                         "id": item.get("id"),
@@ -491,16 +499,24 @@ class WorkspaceAccessEnforcer:
                 return payload.get("value", payload.get("users", []))
             except WorkspaceAccessError as exc:
                 if getattr(exc, "status_code", None) == 404:
-                    self.logger.warning(
-                        "Workspace %s no longer exists (404); skipping user evaluation",
-                        workspace_id,
-                    )
-                    return []
+                    # 404 might mean "Not Found" OR "Access Denied" (if not a member).
+                    # We continue to the next source (e.g. Admin API) to verify.
+                    errors.append(f"{source_name}: 404 Not Found")
+                    continue
+                
                 errors.append(f"{source_name}: {exc}")
                 self.logger.warning(
                     "%s user lookup failed for workspace %s: %s", 
                     source_name.title(), workspace_id, exc
                 )
+
+        # If we exhausted all sources and they all failed
+        if any("404" in e for e in errors):
+             self.logger.warning(
+                "Workspace %s not found or inaccessible via any endpoint (404); skipping",
+                workspace_id,
+            )
+             return []
 
         if errors:
             joined = "; ".join(errors)
@@ -628,10 +644,12 @@ class WorkspaceAccessEnforcer:
 
             if response.status_code == 429 and attempt < self.max_retries:
                 retry_after = int(response.headers.get("Retry-After", backoff))
+                self.logger.warning(f"Rate limited (429) on {url}. Retrying after {retry_after}s...")
                 time.sleep(retry_after)
                 continue
 
             if 500 <= response.status_code < 600 and attempt < self.max_retries:
+                self.logger.warning(f"Server error {response.status_code} on {url}. Retrying in {backoff}s...")
                 time.sleep(backoff)
                 backoff *= 2
                 continue
