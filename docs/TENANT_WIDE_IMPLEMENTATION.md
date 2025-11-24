@@ -265,6 +265,11 @@ Expected output: `Found 2187 workspaces` (or similar count)
 
 ## Changelog
 
+### Version 2.1 (Enhancements)
+- Added **Lineage Extraction** for Mirrored Databases (`extract_lineage.py`)
+- Improved **Activity Insights** with robust duration calculation and status normalization
+- Added **Manual Report Generation** utility (`generate_reports_manual.py`)
+
 ### Version 2.0 (Current)
 - Implemented tenant-wide activity monitoring using Power BI Admin API
 - Added `get_tenant_wide_activities()` method

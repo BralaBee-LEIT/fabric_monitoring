@@ -12,6 +12,7 @@ A comprehensive Python-based solution for monitoring, analyzing, and governing M
   - Long-running operations.
   - User and item-level usage patterns.
   - Failure analysis.
+  - **Enhanced Accuracy**: Robust handling of activity duration and status normalization.
 - **Scope Control**: Analyze all tenant workspaces or filter to specific subsets.
 
 ### 2. Workspace Access Enforcement (`enforce_workspace_access.py`)
@@ -21,6 +22,11 @@ A comprehensive Python-based solution for monitoring, analyzing, and governing M
   - `enforce`: Applies changes to add missing principals (requires confirmation).
 - **Flexible Targeting**: Configure target groups via JSON files.
 - **Suppression Support**: Whitelist specific workspaces to skip enforcement.
+
+### 3. Lineage Extraction (`extract_lineage.py`)
+- **Mirrored Database Analysis**: Scans workspaces for Mirrored Databases.
+- **Source Tracing**: Extracts source connection details (e.g., Snowflake, Azure SQL) and database names.
+- **Inventory Reporting**: Generates a CSV inventory of all mirrored assets and their origins.
 
 ## 📋 Prerequisites
 
@@ -89,6 +95,21 @@ make enforce-access MODE=assess CSV_SUMMARY=1
 Apply changes to fix permission gaps.
 ```bash
 make enforce-access MODE=enforce CONFIRM=1
+```
+
+### Lineage Extraction
+
+Extract lineage details for Mirrored Databases:
+```bash
+make extract-lineage
+```
+*Output: `exports/lineage/mirrored_lineage_YYYYMMDD_HHMMSS.csv`*
+
+### Manual Report Generation
+
+Regenerate reports from previously extracted data (useful if extraction was interrupted):
+```bash
+make generate-reports
 ```
 
 ### Development Commands
