@@ -29,3 +29,5 @@ exports/
 
 # Local tooling
 .ipynb_checkpoints/
+dist/
+*.log*

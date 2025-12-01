@@ -224,8 +224,8 @@ Check current permissions:
 ```bash
 # Test workspace enumeration
 python -c "
-from src.core.auth import create_authenticator_from_env
-from src.core.extractor import FabricDataExtractor
+from usf_fabric_monitoring.core.auth import create_authenticator_from_env
+from usf_fabric_monitoring.core.extractor import FabricDataExtractor
 auth = create_authenticator_from_env()
 extractor = FabricDataExtractor(auth)
 workspaces = extractor.get_workspaces(tenant_wide=True)

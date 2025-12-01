@@ -214,10 +214,10 @@ python monitor_hub_pipeline.py --days 7
 **Verify**:
 ```bash
 # Test Fabric token
-python -c "from src.core.auth import create_authenticator_from_env; auth = create_authenticator_from_env(); print(auth.get_fabric_token())"
+python -c "from usf_fabric_monitoring.core.auth import create_authenticator_from_env; auth = create_authenticator_from_env(); print(auth.get_fabric_token())"
 
 # Test Power BI token
-python -c "from src.core.auth import create_authenticator_from_env; auth = create_authenticator_from_env(); print(auth.get_powerbi_token())"
+python -c "from usf_fabric_monitoring.core.auth import create_authenticator_from_env; auth = create_authenticator_from_env(); print(auth.get_powerbi_token())"
 ```
 
 ---

@@ -6,9 +6,9 @@ from pathlib import Path
 import pandas as pd
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parents[1]))
+sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
-from src.core.monitor_hub_reporter_clean import MonitorHubCSVReporter
+from usf_fabric_monitoring.core.monitor_hub_reporter_clean import MonitorHubCSVReporter
 
 def test_compute_report():
     output_dir = "exports/test_compute_report"
