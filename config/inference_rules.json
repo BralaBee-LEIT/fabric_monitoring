@@ -1,0 +1,16 @@
+{
+  "domains": {
+    "Human Resources": ["hr", "human", "resource"],
+    "Finance": ["finance", "financial", "budget"],
+    "Sales": ["sales", "crm", "customer"],
+    "Operations": ["ops", "operation", "admin"],
+    "IT": ["it", "tech", "system"],
+    "Analytics": ["analytics", "bi", "data"],
+    "Development": ["dev", "test", "prod"]
+  },
+  "locations": {
+    "EMEA": ["emea"],
+    "Americas": ["us", "usa", "america"],
+    "APAC": ["apac", "asia", "pacific"]
+  }
+}

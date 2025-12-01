@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
 from core.enrichment import compute_duration_seconds, _parse_datetime
 

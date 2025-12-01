@@ -350,7 +350,7 @@ class MonitorHubCSVReporter:
         df["submitted_by"] = df["submitted_by"].fillna("Unknown")
         df["item_name"] = df["item_name"].fillna("Unknown")
         df["status"] = df["status"].fillna("Unknown")
-        df["duration_seconds"] = df["duration_seconds"].fillna(0)
+        # Do NOT fill duration with 0, as it skews averages. Keep as NaN.
         
         # Aggregate
         summary = df.groupby(["submitted_by", "item_name", "item_type", "status"]).agg(
@@ -373,8 +373,14 @@ class MonitorHubCSVReporter:
             failed_runs = len(group[group["status"] == "Failed"])
             success_runs = len(group[group["status"] == "Succeeded"])
             
-            avg_duration = group["duration_seconds"].mean()
-            total_duration = group["duration_seconds"].sum()
+            # Calculate duration stats only on completed runs (where duration is not null)
+            completed_runs = group[group["duration_seconds"].notna()]
+            avg_duration = completed_runs["duration_seconds"].mean() if not completed_runs.empty else 0
+            total_duration = completed_runs["duration_seconds"].sum()
+            
+            # Identify runs with unknown duration (likely In Progress or Crashed)
+            unknown_duration_runs = len(group[group["duration_seconds"].isna()])
+            
             last_run = group["start_time"].max()
             
             # Identify most common error if any failures
@@ -391,6 +397,7 @@ class MonitorHubCSVReporter:
                 "Total Runs": total_runs,
                 "Successful Runs": success_runs,
                 "Failed Runs": failed_runs,
+                "Unknown/In Progress Runs": unknown_duration_runs,
                 "Failure Rate %": round((failed_runs / total_runs) * 100, 1),
                 "Avg Duration (s)": round(avg_duration, 1),
                 "Total Duration (s)": round(total_duration, 1),

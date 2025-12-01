@@ -2,8 +2,32 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, Optional
+
+_INFERENCE_RULES = None
+
+
+def _load_inference_rules() -> Dict[str, Any]:
+    """Load inference rules from JSON configuration."""
+    global _INFERENCE_RULES
+    if _INFERENCE_RULES is not None:
+        return _INFERENCE_RULES
+
+    try:
+        # config/inference_rules.json is two levels up from src/core
+        config_path = Path(__file__).resolve().parents[2] / "config" / "inference_rules.json"
+        if config_path.exists():
+            with open(config_path, "r", encoding="utf-8") as f:
+                _INFERENCE_RULES = json.load(f)
+        else:
+            _INFERENCE_RULES = {}
+    except Exception:
+        _INFERENCE_RULES = {}
+
+    return _INFERENCE_RULES
 
 
 def _parse_datetime(value: Optional[str]) -> Optional[datetime]:
@@ -89,15 +113,20 @@ def infer_domain(name: Optional[str]) -> str:
         return "General"
 
     lowered = name.lower()
-    domain_map = {
-        "Human Resources": ["hr", "human", "resource"],
-        "Finance": ["finance", "financial", "budget"],
-        "Sales": ["sales", "crm", "customer"],
-        "Operations": ["ops", "operation", "admin"],
-        "IT": ["it", "tech", "system"],
-        "Analytics": ["analytics", "bi", "data"],
-        "Development": ["dev", "test", "prod"],
-    }
+    rules = _load_inference_rules()
+    domain_map = rules.get("domains", {})
+
+    # Fallback if config is missing or empty
+    if not domain_map:
+        domain_map = {
+            "Human Resources": ["hr", "human", "resource"],
+            "Finance": ["finance", "financial", "budget"],
+            "Sales": ["sales", "crm", "customer"],
+            "Operations": ["ops", "operation", "admin"],
+            "IT": ["it", "tech", "system"],
+            "Analytics": ["analytics", "bi", "data"],
+            "Development": ["dev", "test", "prod"],
+        }
 
     for domain, keywords in domain_map.items():
         if any(keyword in lowered for keyword in keywords):
@@ -118,6 +147,15 @@ def infer_location(workspace: Optional[Dict[str, Any]]) -> str:
     display_name = workspace.get("displayName") or workspace.get("name")
     if display_name:
         lowered = display_name.lower()
+        rules = _load_inference_rules()
+        location_map = rules.get("locations", {})
+
+        # Use configured rules first
+        for location, keywords in location_map.items():
+            if any(keyword in lowered for keyword in keywords):
+                return location
+
+        # Fallback hardcoded logic if not matched or config missing
         if "emea" in lowered:
             return "EMEA"
         if any(k in lowered for k in ["us", "usa", "america"]):

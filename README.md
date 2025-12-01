@@ -13,6 +13,7 @@ A comprehensive Python-based solution for monitoring, analyzing, and governing M
   - User and item-level usage patterns.
   - Failure analysis.
   - **Enhanced Accuracy**: Robust handling of activity duration and status normalization.
+  - **Configurable Inference**: Domain and location mapping logic is now configurable via JSON.
 - **Scope Control**: Analyze all tenant workspaces or filter to specific subsets.
 
 ### 2. Workspace Access Enforcement (`enforce_workspace_access.py`)
@@ -60,7 +61,9 @@ This project uses a `Makefile` to simplify environment management.
 
 ## ⚙️ Configuration
 
-The system is configured via the `.env` file. Key variables include:
+The system is configured via the `.env` file and JSON configuration files in the `config/` directory.
+
+### Environment Variables (`.env`)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -68,6 +71,12 @@ The system is configured via the `.env` file. Key variables include:
 | `DEFAULT_ANALYSIS_DAYS` | `7` | Default window for analysis. |
 | `EXPORT_DIRECTORY` | `exports/monitor_hub_analysis` | Output path for reports. |
 | `API_RATE_LIMIT_REQUESTS_PER_HOUR` | `180` | Rate limiting safety buffer. |
+
+### Business Logic Configuration (`config/`)
+
+- **`inference_rules.json`**: Maps keywords to business domains (e.g., "HR", "Finance") and locations (e.g., "EMEA", "Americas"). Update this file to customize how activities are categorized without changing code.
+- **`workspace_access_targets.json`**: Defines the security groups and roles that must be present on workspaces.
+- **`workspace_access_suppressions.json`**: Lists workspaces to exclude from enforcement.
 
 ## 📖 Usage Guide
 
