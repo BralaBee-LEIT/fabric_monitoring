@@ -43,7 +43,8 @@ class FabricAuthenticator:
         
         # Initialize Credential Strategy
         if self.tenant_id and self.client_id and self.client_secret:
-            self.logger.info("Using Service Principal credentials")
+            masked_id = f"{self.client_id[:4]}...{self.client_id[-4:]}" if len(self.client_id) > 8 else "********"
+            self.logger.info(f"Using Service Principal credentials (Client ID: {masked_id})")
             self.credential = ClientSecretCredential(
                 tenant_id=self.tenant_id,
                 client_id=self.client_id,

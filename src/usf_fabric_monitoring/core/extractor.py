@@ -496,7 +496,7 @@ class FabricDataExtractor:
                 
                 if status_code in [401, 403]:
                     self.logger.warning(f"⚠️ Tenant-wide access denied ({status_code}). Falling back to member-only scope.")
-                    print(f"   ⚠️ Access denied to tenant-wide API. Falling back to member workspaces...", end='\r', flush=True)
+                    print(f"   ⚠️ Access denied to tenant-wide API ({status_code}). Falling back to member workspaces...", end='\r', flush=True)
                     # Fallback to member-only logic (recursive call with tenant_wide=False)
                     return self.get_daily_activities(date, workspace_ids, activity_types, tenant_wide=False)
                 else:
