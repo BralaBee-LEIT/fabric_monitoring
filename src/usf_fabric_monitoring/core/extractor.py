@@ -427,9 +427,6 @@ class FabricDataExtractor:
             
             return all_activities
             
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"Failed to fetch tenant-wide activities: {str(e)}")
-            raise
     
     def get_daily_activities(self, date: datetime, workspace_ids: Optional[List[str]] = None, 
                            activity_types: Optional[List[str]] = None, tenant_wide: bool = True) -> List[Dict[str, Any]]:
@@ -494,8 +491,12 @@ class FabricDataExtractor:
                 
             except requests.exceptions.RequestException as e:
                 # Check for 401/403 errors which indicate lack of Admin permissions
-                if e.response is not None and e.response.status_code in [401, 403]:
-                    self.logger.warning(f"⚠️ Tenant-wide access denied ({e.response.status_code}). Falling back to member-only scope.")
+                status_code = 0
+                if e.response is not None:
+                    status_code = e.response.status_code
+                
+                if status_code in [401, 403]:
+                    self.logger.warning(f"⚠️ Tenant-wide access denied ({status_code}). Falling back to member-only scope.")
                     print(f"   ⚠️ Access denied to tenant-wide API. Falling back to member workspaces...", end='\r', flush=True)
                     # Fallback to member-only logic (recursive call with tenant_wide=False)
                     return self.get_daily_activities(date, workspace_ids, activity_types, tenant_wide=False)
