@@ -152,11 +152,11 @@ usf_fabric_monitoring/
 ├── config/                 # Configuration files (targets, suppressions)
 ├── docs/                   # Documentation
 ├── exports/                # Generated reports and data
+├── notebooks/              # Jupyter Notebooks for interactive analysis
 ├── src/                    # Source code
-│   ├── core/               # Core logic (extractors, enforcers)
-│   └── ...
-├── enforce_workspace_access.py  # Governance entry point
-├── monitor_hub_pipeline.py      # Monitoring entry point
+│   └── usf_fabric_monitoring/
+│       ├── core/           # Core logic (extractors, enforcers, pipeline)
+│       └── scripts/        # Entry point scripts (monitor_hub_pipeline.py, etc.)
 ├── Makefile                # Command automation
 ├── environment.yml         # Conda environment definition
 └── requirements.txt        # Pip dependencies

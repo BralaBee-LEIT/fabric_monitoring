@@ -13,7 +13,7 @@ YELLOW = \033[1;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help create update delete status install test clean lint format check-env enforce-access monitor-hub
+.PHONY: help create update delete status install test clean lint format check-env enforce-access monitor-hub extract-lineage compute-analysis generate-reports audit-sp-access extract-details build export activate dev-setup dev-check
 
 # Default target
 help:
