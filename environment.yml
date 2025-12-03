@@ -29,3 +29,7 @@ dependencies:
     - azure-identity
     - azure-storage-blob
     - asyncio-throttle
+    - pyspark
+    - delta-spark
+    - matplotlib
+    - seaborn

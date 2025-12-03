@@ -40,7 +40,11 @@ dev = [
     "flake8",
     "mypy",
     "jupyter",
-    "notebook"
+    "notebook",
+    "pyspark",
+    "delta-spark",
+    "matplotlib",
+    "seaborn"
 ]
 
 [tool.setuptools.packages.find]

@@ -171,15 +171,26 @@ class FabricDataExtractor:
         Returns ~139 workspaces (member-only, not tenant-wide).
         """
         try:
-            url = f"{self.fabric_base_url}/{self.api_version}/workspaces"
+            base_url = f"{self.fabric_base_url}/{self.api_version}/workspaces"
+            url = base_url
             headers = self.auth.get_fabric_headers()
             
             self.logger.info("Fetching member workspaces (legacy behavior)")
-            response = self.session.get(url, headers=headers, timeout=self.timeout)
-            response.raise_for_status()
             
-            data = response.json()
-            workspaces = data.get("value", [])
+            workspaces = []
+            while url:
+                response = self.session.get(url, headers=headers, timeout=self.timeout)
+                response.raise_for_status()
+                
+                data = response.json()
+                items = data.get("value", [])
+                workspaces.extend(items)
+                
+                continuation_token = data.get("continuationToken")
+                if continuation_token:
+                    url = f"{base_url}?continuationToken={continuation_token}"
+                else:
+                    url = None
             
             self.logger.info(f"Retrieved {len(workspaces)} member workspaces")
             return workspaces

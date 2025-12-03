@@ -272,3 +272,14 @@ audit-sp-access:
 		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
 		echo "$(YELLOW)Create it first with: make create$(NC)"; \
 	fi
+
+# Extract Fabric Item Details
+extract-details:
+	@echo "$(GREEN)Extracting Fabric Item Details$(NC)"
+	@if conda env list | grep -q "^$(ENV_NAME) "; then \
+		WS_ARG=$${WORKSPACE:+--workspace $$WORKSPACE}; \
+		conda run --no-capture-output -n $(ENV_NAME) python src/usf_fabric_monitoring/scripts/extract_fabric_item_details.py $$WS_ARG; \
+	else \
+		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
+		echo "$(YELLOW)Create it first with: make create$(NC)"; \
+	fi

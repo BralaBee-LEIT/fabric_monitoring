@@ -11,21 +11,24 @@ from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 
 import requests
-from azure.identity import ClientSecretCredential
+from azure.identity import ClientSecretCredential, DefaultAzureCredential
 from azure.core.exceptions import ClientAuthenticationError
 
 
 class FabricAuthenticator:
     """Handles authentication for Microsoft Fabric and Power BI APIs"""
     
-    def __init__(self, tenant_id: str, client_id: str, client_secret: str):
+    def __init__(self, tenant_id: str = None, client_id: str = None, client_secret: str = None):
         """
-        Initialize the authenticator with service principal credentials.
+        Initialize the authenticator.
         
         Args:
-            tenant_id: Azure tenant ID
-            client_id: Application (client) ID from app registration
-            client_secret: Client secret from app registration
+            tenant_id: Azure tenant ID (optional)
+            client_id: Application (client) ID (optional)
+            client_secret: Client secret (optional)
+            
+        If credentials are not provided, attempts to use DefaultAzureCredential 
+        or Fabric Notebook identity (notebookutils).
         """
         self.tenant_id = tenant_id
         self.client_id = client_id
@@ -38,31 +41,40 @@ class FabricAuthenticator:
         self._fabric_token_expires = None
         self._powerbi_token_expires = None
         
-        # Initialize Azure credential
-        self.credential = ClientSecretCredential(
-            tenant_id=self.tenant_id,
-            client_id=self.client_id,
-            client_secret=self.client_secret
-        )
+        # Initialize Credential Strategy
+        if self.tenant_id and self.client_id and self.client_secret:
+            self.logger.info("Using Service Principal credentials")
+            self.credential = ClientSecretCredential(
+                tenant_id=self.tenant_id,
+                client_id=self.client_id,
+                client_secret=self.client_secret
+            )
+        else:
+            self.logger.info("No Service Principal provided. Using DefaultAzureCredential/Notebook Identity.")
+            self.credential = DefaultAzureCredential()
     
     def get_fabric_token(self, force_refresh: bool = False) -> str:
         """
         Get access token for Microsoft Fabric API.
-        
-        Args:
-            force_refresh: Force token refresh even if cached token is valid
-            
-        Returns:
-            Bearer token for Fabric API
-            
-        Raises:
-            ClientAuthenticationError: If authentication fails
         """
         if not force_refresh and self._is_token_valid(self._fabric_token_expires):
             return self._fabric_token
             
+        # 1. Try notebookutils (Fabric Environment)
         try:
-            self.logger.info("Acquiring Fabric API access token")
+            from notebookutils import credentials
+            self.logger.info("Acquiring token via notebookutils")
+            token_str = credentials.getToken("pbi")
+            self._fabric_token = token_str
+            # notebookutils doesn't give expiry easily, assume valid for now or set short expiry
+            self._fabric_token_expires = datetime.now() + timedelta(minutes=55) 
+            return self._fabric_token
+        except ImportError:
+            pass # Not in Fabric notebook or notebookutils not available
+            
+        # 2. Try Azure Identity (Service Principal or Default)
+        try:
+            self.logger.info("Acquiring Fabric API access token via Azure Identity")
             token = self.credential.get_token("https://api.fabric.microsoft.com/.default")
             
             self._fabric_token = token.token
@@ -78,19 +90,22 @@ class FabricAuthenticator:
     def get_powerbi_token(self, force_refresh: bool = False) -> str:
         """
         Get access token for Power BI API.
-        
-        Args:
-            force_refresh: Force token refresh even if cached token is valid
-            
-        Returns:
-            Bearer token for Power BI API
-            
-        Raises:
-            ClientAuthenticationError: If authentication fails
         """
         if not force_refresh and self._is_token_valid(self._powerbi_token_expires):
             return self._powerbi_token
             
+        # 1. Try notebookutils
+        try:
+            from notebookutils import credentials
+            self.logger.info("Acquiring PowerBI token via notebookutils")
+            token_str = credentials.getToken("pbi")
+            self._powerbi_token = token_str
+            self._powerbi_token_expires = datetime.now() + timedelta(minutes=55)
+            return self._powerbi_token
+        except ImportError:
+            pass
+
+        # 2. Try Azure Identity
         try:
             self.logger.info("Acquiring Power BI API access token")
             token = self.credential.get_token("https://analysis.windows.net/powerbi/api/.default")
@@ -162,26 +177,18 @@ def create_authenticator_from_env() -> FabricAuthenticator:
     - AZURE_CLIENT_ID  
     - AZURE_CLIENT_SECRET
     
+    If variables are missing, returns an authenticator that uses DefaultAzureCredential.
+    
     Returns:
         Configured FabricAuthenticator instance
-        
-    Raises:
-        ValueError: If required environment variables are missing
     """
     tenant_id = os.getenv("AZURE_TENANT_ID")
     client_id = os.getenv("AZURE_CLIENT_ID")
     client_secret = os.getenv("AZURE_CLIENT_SECRET")
     
     if not all([tenant_id, client_id, client_secret]):
-        missing = []
-        if not tenant_id:
-            missing.append("AZURE_TENANT_ID")
-        if not client_id:
-            missing.append("AZURE_CLIENT_ID")
-        if not client_secret:
-            missing.append("AZURE_CLIENT_SECRET")
-        
-        raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+        logging.getLogger(__name__).info("Environment variables for Service Principal not found. Using DefaultAzureCredential.")
+        return FabricAuthenticator()
     
     return FabricAuthenticator(
         tenant_id=tenant_id,
