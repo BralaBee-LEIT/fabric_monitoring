@@ -179,7 +179,7 @@ To run this solution directly within a Microsoft Fabric Notebook:
 1.  **Build the Package**:
     Run the following command locally to create a Python Wheel (`.whl`) file:
     ```bash
-    python -m build
+    make build
     ```
     This will generate a file like `dist/usf_fabric_monitoring-0.1.11-py3-none-any.whl`.
 
