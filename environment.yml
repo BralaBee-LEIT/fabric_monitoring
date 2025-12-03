@@ -24,6 +24,8 @@ dependencies:
   - mypy
   - jupyter
   - notebook
+  - pyarrow
+  - fastparquet
   - pip:
     - python-dotenv
     - azure-identity

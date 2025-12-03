@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 import json
+import pandas as pd
 
 # Add src to path for imports if needed, but assuming package structure
 from usf_fabric_monitoring.scripts.extract_historical_data import extract_historical_data as run_historical_extraction
@@ -103,6 +104,9 @@ class MonitorHubPipeline:
             historical_data = self._build_historical_dataset(activities, start_date, end_date, resolved_days)
             self.logger.info(f"✅ Loaded {len(activities)} activities for analysis")
 
+            self.logger.info("Step 2c: Persisting merged data to Parquet (Source of Truth)")
+            self._save_to_parquet(historical_data)
+
             self.logger.info("Step 3: Generating comprehensive CSV reports")
             self.reporter = MonitorHubCSVReporter(str(self.output_directory))
             report_files = self.reporter.generate_comprehensive_reports(historical_data)
@@ -130,6 +134,56 @@ class MonitorHubPipeline:
                 "report_files": {}
             }
     
+    def _save_to_parquet(self, historical_data: Dict[str, Any]) -> None:
+        """
+        Save merged data to Parquet files for Delta Table ingestion.
+        
+        Args:
+            historical_data: The dictionary containing merged activities, workspaces, and items.
+        """
+        parquet_dir = self.output_directory / "parquet"
+        parquet_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # 1. Save Activities
+        activities = historical_data.get("activities", [])
+        if activities:
+            try:
+                df_activities = pd.DataFrame(activities)
+                # Ensure datetime columns are properly typed for Parquet
+                for col in ['start_time', 'end_time', 'creation_time']:
+                    if col in df_activities.columns:
+                        df_activities[col] = pd.to_datetime(df_activities[col], errors='coerce')
+                
+                activities_path = parquet_dir / f"activities_{timestamp}.parquet"
+                df_activities.to_parquet(activities_path, index=False)
+                self.logger.info(f"Saved {len(activities)} activities to {activities_path}")
+            except Exception as e:
+                self.logger.error(f"Failed to save activities to parquet: {e}")
+        
+        # 2. Save Workspaces
+        workspaces = historical_data.get("workspaces", [])
+        if workspaces:
+            try:
+                df_workspaces = pd.DataFrame(workspaces)
+                workspaces_path = parquet_dir / f"workspaces_{timestamp}.parquet"
+                df_workspaces.to_parquet(workspaces_path, index=False)
+                self.logger.info(f"Saved {len(workspaces)} workspaces to {workspaces_path}")
+            except Exception as e:
+                self.logger.error(f"Failed to save workspaces to parquet: {e}")
+                
+        # 3. Save Items
+        items = historical_data.get("items", [])
+        if items:
+            try:
+                df_items = pd.DataFrame(items)
+                items_path = parquet_dir / f"items_{timestamp}.parquet"
+                df_items.to_parquet(items_path, index=False)
+                self.logger.info(f"Saved {len(items)} items to {items_path}")
+            except Exception as e:
+                self.logger.error(f"Failed to save items to parquet: {e}")
+
     def _create_pipeline_summary(self, historical_data: Dict[str, Any], 
                                 report_files: Dict[str, str], days: int) -> Dict[str, Any]:
         """Create summary of pipeline execution"""
