@@ -72,19 +72,27 @@ def get_last_processed_time(output_dir: Path) -> datetime:
             
     return max_time
 
-def main(argv=None):
-    load_dotenv()
-    args = parse_args(argv)
+def run_item_details_extraction(workspace_id: str = None, output_dir: str = "exports/fabric_item_details", log_level: str = "INFO") -> Dict[str, Any]:
+    """
+    Run the extraction of Fabric item details (jobs and lakehouse tables).
     
-    logger = setup_logging(name="fabric_item_details", level=getattr(logging, args.log_level.upper()))
+    Args:
+        workspace_id: Optional workspace ID to filter by.
+        output_dir: Directory to save JSON exports.
+        log_level: Logging level.
+        
+    Returns:
+        Dictionary containing status and summary of extraction.
+    """
+    logger = setup_logging(name="fabric_item_details", level=getattr(logging, log_level.upper()))
     
     try:
         authenticator = create_authenticator_from_env()
         extractor = FabricDataExtractor(authenticator)
         detail_extractor = FabricItemDetailExtractor(authenticator)
         
-        output_dir = Path(args.output_dir)
-        last_processed_time = get_last_processed_time(output_dir)
+        output_path = Path(output_dir)
+        last_processed_time = get_last_processed_time(output_path)
         
         if last_processed_time:
             logger.info(f"Incremental run: Fetching jobs completed after {last_processed_time}")
@@ -95,9 +103,9 @@ def main(argv=None):
         logger.info("Fetching workspaces...")
         workspaces = extractor.get_workspaces(tenant_wide=False, exclude_personal=True)
         
-        if args.workspace:
-            workspaces = [ws for ws in workspaces if ws.get("id") == args.workspace]
-            logger.info(f"Filtered to workspace: {args.workspace}")
+        if workspace_id:
+            workspaces = [ws for ws in workspaces if ws.get("id") == workspace_id]
+            logger.info(f"Filtered to workspace: {workspace_id}")
             
         logger.info(f"Found {len(workspaces)} workspaces to process")
         
@@ -107,11 +115,11 @@ def main(argv=None):
         }
         
         for ws in workspaces:
-            workspace_id = ws.get("id")
+            ws_id = ws.get("id")
             workspace_name = ws.get("displayName")
-            logger.info(f"Processing workspace: {workspace_name} ({workspace_id})")
+            logger.info(f"Processing workspace: {workspace_name} ({ws_id})")
             
-            items = extractor.get_workspace_items(workspace_id)
+            items = extractor.get_workspace_items(ws_id)
             
             for item in items:
                 item_id = item.get("id")
@@ -120,17 +128,16 @@ def main(argv=None):
                 
                 if item_type == "Lakehouse":
                     logger.info(f"  Fetching tables for Lakehouse: {item_name}")
-                    tables = detail_extractor.get_lakehouse_tables(workspace_id, item_id)
+                    tables = detail_extractor.get_lakehouse_tables(ws_id, item_id)
                     for table in tables:
                         table["_workspace_name"] = workspace_name
                         table["_item_name"] = item_name
                         table["_item_type"] = item_type
                         all_details["lakehouses"].append(table)
                 else:
-                    # Try to fetch jobs for all other item types (Pipelines, Notebooks, Dataflows, etc.)
-                    # This ensures we capture any item type that supports the job instances API
+                    # Try to fetch jobs for all other item types
                     try:
-                        jobs = detail_extractor.get_item_job_instances(workspace_id, item_id)
+                        jobs = detail_extractor.get_item_job_instances(ws_id, item_id)
                         if jobs:
                             # Filter jobs if incremental run
                             if last_processed_time:
@@ -143,10 +150,8 @@ def main(argv=None):
                                             if dt > last_processed_time:
                                                 new_jobs.append(job)
                                         except ValueError:
-                                            # If date parsing fails, include it to be safe
                                             new_jobs.append(job)
                                     else:
-                                        # If no end time, include it (might be running)
                                         new_jobs.append(job)
                                 jobs = new_jobs
 
@@ -158,28 +163,54 @@ def main(argv=None):
                                     job["_item_type"] = item_type
                                     all_details["jobs"].append(job)
                     except Exception as e:
-                        # Log debug to avoid noise for items that don't support jobs
                         logger.debug(f"  Could not fetch jobs for {item_type} {item_name}: {str(e)}")
 
         # Save results
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = Path(args.output_dir)
         
+        saved_files = []
         if all_details["jobs"]:
-            save_json(all_details["jobs"], output_dir / f"jobs_{timestamp}.json")
+            job_file = output_path / f"jobs_{timestamp}.json"
+            save_json(all_details["jobs"], job_file)
+            saved_files.append(str(job_file))
             logger.info(f"Saved {len(all_details['jobs'])} jobs (all types)")
             
         if all_details["lakehouses"]:
-            save_json(all_details["lakehouses"], output_dir / f"lakehouses_{timestamp}.json")
+            lake_file = output_path / f"lakehouses_{timestamp}.json"
+            save_json(all_details["lakehouses"], lake_file)
+            saved_files.append(str(lake_file))
             logger.info(f"Saved {len(all_details['lakehouses'])} lakehouse tables")
             
         logger.info("Extraction complete")
         
+        return {
+            "status": "success",
+            "jobs_count": len(all_details["jobs"]),
+            "lakehouses_count": len(all_details["lakehouses"]),
+            "files": saved_files
+        }
+        
     except Exception as e:
         logger.error(f"Extraction failed: {str(e)}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+def main(argv=None):
+    load_dotenv()
+    args = parse_args(argv)
+    
+    result = run_item_details_extraction(
+        workspace_id=args.workspace,
+        output_dir=args.output_dir,
+        log_level=args.log_level
+    )
+    
+    if result["status"] == "success":
+        return 0
+    else:
         return 1
-        
-    return 0
 
 if __name__ == "__main__":
     sys.exit(main())

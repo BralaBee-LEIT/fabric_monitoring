@@ -7,6 +7,7 @@ import json
 
 # Add src to path for imports if needed, but assuming package structure
 from usf_fabric_monitoring.scripts.extract_historical_data import extract_historical_data as run_historical_extraction
+from usf_fabric_monitoring.scripts.extract_fabric_item_details import run_item_details_extraction
 from usf_fabric_monitoring.core.data_loader import load_activities_from_directory
 from usf_fabric_monitoring.core.monitor_hub_reporter_clean import MonitorHubCSVReporter
 from usf_fabric_monitoring.core.logger import setup_logging
@@ -62,12 +63,29 @@ class MonitorHubPipeline:
                 self.logger.warning(message)
                 return {"status": "error", "message": message, "report_files": {}}
 
+            self.logger.info("Step 1b: Extracting detailed job history (for accurate failure tracking)")
+            # We use a separate directory for item details, but we can pass it if needed.
+            # The default is exports/fabric_item_details, which matches what we load later.
+            details_result = run_item_details_extraction(
+                output_dir="exports/fabric_item_details"
+            )
+            
+            if details_result.get("status") != "success":
+                self.logger.warning(f"Detailed job extraction failed: {details_result.get('message')}")
+                # We proceed, but warn that failure data might be incomplete
+            else:
+                self.logger.info(f"✅ Extracted {details_result.get('jobs_count', 0)} new job records")
+
             print("\n" + "="*40)
             print("✅ Extraction Complete. Starting Analysis...")
             print("="*40 + "\n")
 
             self.logger.info("Step 2: Loading enriched activity exports")
             activities = load_activities_from_directory(str(extraction_dir))
+
+            self.logger.info("Step 2b: Loading detailed job history (for accurate status)")
+            detailed_jobs = self._load_detailed_jobs()
+            activities = self._merge_activities(activities, detailed_jobs)
 
             if not activities:
                 self.logger.warning("No activities loaded from exports")
@@ -178,11 +196,73 @@ class MonitorHubPipeline:
         extraction_dir.mkdir(parents=True, exist_ok=True)
         return extraction_dir
 
+    def _load_detailed_jobs(self) -> List[Dict[str, Any]]:
+        """Load all detailed jobs exports"""
+        export_dir = Path("exports/fabric_item_details")
+        if not export_dir.exists():
+            self.logger.warning(f"Detailed jobs directory not found: {export_dir}")
+            return []
+            
+        # Find all jobs_*.json files
+        job_files = list(export_dir.glob("jobs_*.json"))
+        if not job_files:
+            self.logger.warning("No detailed job files found")
+            return []
+            
+        all_jobs = []
+        for job_file in job_files:
+            self.logger.info(f"Loading detailed jobs from {job_file}")
+            try:
+                with open(job_file, 'r') as f:
+                    jobs = json.load(f)
+                    all_jobs.extend(jobs)
+            except Exception as e:
+                self.logger.error(f"Failed to load detailed jobs from {job_file}: {e}")
+                
+        self.logger.info(f"Total detailed jobs loaded: {len(all_jobs)}")
+        return all_jobs
+
+    def _merge_activities(self, activities: List[Dict[str, Any]], detailed_jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Merge detailed job status into activities"""
+        if not detailed_jobs:
+            return activities
+            
+        # Since we couldn't match by ID, we will append the detailed jobs as new activities
+        # This ensures we capture the failures.
+        
+        converted_jobs = []
+        for job in detailed_jobs:
+            # Normalize job to activity format (snake_case to match data_loader)
+            new_activity = {
+                "activity_id": job.get("id"),
+                "activity_type": job.get("jobType", "JobExecution"),
+                "item_name": job.get("_item_name", "Unknown"),
+                "item_type": job.get("_item_type", "Unknown"),
+                "item_id": job.get("itemId"),
+                "workspace_name": job.get("_workspace_name", "Unknown"),
+                "status": job.get("status"),
+                "start_time": job.get("startTimeUtc"),
+                "end_time": job.get("endTimeUtc"),
+                "failure_reason": job.get("failureReason"),
+                "submitted_by": "System",
+                "source": "JobHistory"
+            }
+            converted_jobs.append(new_activity)
+            
+        self.logger.info(f"Added {len(converted_jobs)} detailed jobs to activities")
+        
+        # Combine lists
+        return activities + converted_jobs
+
     def _build_historical_dataset(self, activities: List[Dict[str, Any]], start_date: datetime, end_date: datetime, days: int) -> Dict[str, Any]:
         workspace_lookup: Dict[str, Dict[str, Any]] = {}
         item_lookup: Dict[str, Dict[str, Any]] = {}
+        
+        # Filter for Fabric-only activities
+        fabric_activities = [a for a in activities if self._is_fabric_activity(a)]
+        self.logger.info(f"Filtered {len(activities)} total activities to {len(fabric_activities)} Fabric activities")
 
-        for activity in activities:
+        for activity in fabric_activities:
             workspace_id = activity.get("workspace_id")
             if workspace_id and workspace_id not in workspace_lookup:
                 workspace_lookup[workspace_id] = {
@@ -207,8 +287,40 @@ class MonitorHubPipeline:
             },
             "workspaces": list(workspace_lookup.values()),
             "items": list(item_lookup.values()),
-            "activities": activities
+            "activities": fabric_activities
         }
+
+    def _is_fabric_activity(self, activity: Dict[str, Any]) -> bool:
+        """Check if activity is related to a Fabric item type."""
+        # If it comes from JobHistory, it is definitely a Fabric activity
+        if activity.get("source") == "JobHistory":
+            return True
+
+        # List of known Fabric item types
+        fabric_types = {
+            "DataPipeline", "Notebook", "SparkJobDefinition", 
+            "Lakehouse", "Warehouse", "KQLDatabase", "KQLQueryset", 
+            "Eventstream", "Reflex", "Environment", "MLModel",
+            "Dataflow", "Datamart", "GraphQLApi", "MirroredDatabase"
+        }
+        
+        # List of known Fabric activity operations
+        fabric_ops = {
+            "RunArtifact", "ExecuteNotebook", "ExecutePipeline", 
+            "ExecuteSparkJob", "ExecuteDataflow", "ReadLakehouse",
+            "WriteLakehouse"
+        }
+        
+        item_type = activity.get("item_type")
+        activity_type = activity.get("activity_type")
+        
+        if item_type and item_type in fabric_types:
+            return True
+            
+        if activity_type and activity_type in fabric_ops:
+            return True
+            
+        return False
     
     def print_results_summary(self, results: Dict[str, Any]) -> None:
         """Print formatted results summary"""
