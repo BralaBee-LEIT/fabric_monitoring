@@ -104,7 +104,14 @@ def run_item_details_extraction(workspace_id: str = None, output_dir: str = "exp
 
         # Get workspaces
         logger.info("Fetching workspaces...")
-        workspaces = extractor.get_workspaces(tenant_wide=False, exclude_personal=True)
+        try:
+            # Try to get ALL workspaces using Admin API
+            workspaces = extractor.get_workspaces(tenant_wide=True, exclude_personal=True)
+            logger.info(f"Successfully retrieved {len(workspaces)} workspaces via Admin API")
+        except Exception as e:
+            logger.warning(f"Failed to fetch tenant-wide workspaces (Admin API): {e}")
+            logger.info("Falling back to member-only workspaces...")
+            workspaces = extractor.get_workspaces(tenant_wide=False, exclude_personal=True)
         
         if workspace_id:
             workspaces = [ws for ws in workspaces if ws.get("id") == workspace_id]
