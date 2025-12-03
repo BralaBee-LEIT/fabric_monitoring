@@ -454,43 +454,55 @@ class FabricDataExtractor:
             # Use Power BI Admin API to get ALL tenant activities in a single call
             self.logger.info(f"Using tenant-wide Power BI Admin API for {date.strftime('%Y-%m-%d')}")
             
-            # Fetch all tenant activities at once
-            all_activities = self.get_tenant_wide_activities(
-                start_date=start_date,
-                end_date=end_date,
-                workspace_ids=workspace_ids,
-                activity_types=activity_types
-            )
-            
-            # Get workspace metadata for enrichment
-            if not self._workspace_lookup:
-                self.logger.info("Populating workspace lookup cache...")
-                workspaces = self.get_workspaces(tenant_wide=True, exclude_personal=True)
-                self._workspace_lookup = {ws.get("id"): ws for ws in workspaces if ws.get("id")}
-            
-            # Enrich activities with workspace and item metadata
-            enriched_activities = []
-            for activity in all_activities:
-                workspace_id = activity.get("WorkspaceId")
-                if not workspace_id:
-                    continue
+            try:
+                # Fetch all tenant activities at once
+                all_activities = self.get_tenant_wide_activities(
+                    start_date=start_date,
+                    end_date=end_date,
+                    workspace_ids=workspace_ids,
+                    activity_types=activity_types
+                )
                 
-                workspace_info = self._workspace_lookup.get(workspace_id, {"id": workspace_id, "name": "Unknown"})
-                enriched = self._enrich_activity(activity, workspace_id, workspace_info)
+                # Get workspace metadata for enrichment
+                if not self._workspace_lookup:
+                    self.logger.info("Populating workspace lookup cache...")
+                    workspaces = self.get_workspaces(tenant_wide=True, exclude_personal=True)
+                    self._workspace_lookup = {ws.get("id"): ws for ws in workspaces if ws.get("id")}
                 
-                # Try to attach item metadata (optional, may fail for some workspaces)
-                try:
-                    item_lookup = self._get_workspace_items_lookup(workspace_id)
-                    if item_lookup:
-                        self._attach_item_metadata(enriched, workspace_id, item_lookup)
-                except Exception:
-                    pass  # Skip item metadata if unavailable
+                # Enrich activities with workspace and item metadata
+                enriched_activities = []
+                for activity in all_activities:
+                    workspace_id = activity.get("WorkspaceId")
+                    if not workspace_id:
+                        continue
+                    
+                    workspace_info = self._workspace_lookup.get(workspace_id, {"id": workspace_id, "name": "Unknown"})
+                    enriched = self._enrich_activity(activity, workspace_id, workspace_info)
+                    
+                    # Try to attach item metadata (optional, may fail for some workspaces)
+                    try:
+                        item_lookup = self._get_workspace_items_lookup(workspace_id)
+                        if item_lookup:
+                            self._attach_item_metadata(enriched, workspace_id, item_lookup)
+                    except Exception:
+                        pass  # Skip item metadata if unavailable
+                    
+                    enriched_activities.append(enriched)
                 
-                enriched_activities.append(enriched)
-            
-            self.logger.info(f"Enriched {len(enriched_activities)} activities for {date.strftime('%Y-%m-%d')}")
-            return enriched_activities
-            
+                self.logger.info(f"Enriched {len(enriched_activities)} activities for {date.strftime('%Y-%m-%d')}")
+                return enriched_activities
+                
+            except requests.exceptions.RequestException as e:
+                # Check for 401/403 errors which indicate lack of Admin permissions
+                if e.response is not None and e.response.status_code in [401, 403]:
+                    self.logger.warning(f"⚠️ Tenant-wide access denied ({e.response.status_code}). Falling back to member-only scope.")
+                    print(f"   ⚠️ Access denied to tenant-wide API. Falling back to member workspaces...", end='\r', flush=True)
+                    # Fallback to member-only logic (recursive call with tenant_wide=False)
+                    return self.get_daily_activities(date, workspace_ids, activity_types, tenant_wide=False)
+                else:
+                    # Re-raise other errors (timeouts, 500s, etc.)
+                    raise
+
         else:
             # Legacy per-workspace loop (member workspaces only)
             self.logger.info(f"Using per-workspace API for member workspaces on {date.strftime('%Y-%m-%d')}")
