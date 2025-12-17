@@ -536,12 +536,39 @@ class WorkspaceDimensionBuilder(DimensionBuilder):
 class ItemDimensionBuilder(DimensionBuilder):
     """Builds the Item dimension from activity and job data."""
     
+    # Expanded ITEM_CATEGORIES to cover all known Fabric item types
+    # Coverage: 20+ item types from actual tenant data
     ITEM_CATEGORIES = {
-        "Compute": ["DataPipeline", "Notebook", "SparkJobDefinition", "Dataflow"],
-        "Storage": ["Lakehouse", "Warehouse", "KQLDatabase", "MirroredDatabase"],
-        "Analytics": ["KQLQueryset", "SemanticModel", "Report", "Dashboard"],
-        "Realtime": ["Eventstream", "Reflex"],
-        "Infrastructure": ["Environment", "MLModel", "GraphQLApi"]
+        "Compute": [
+            "DataPipeline", "Pipeline",  # Data orchestration
+            "Notebook", "SynapseNotebook",  # Interactive compute
+            "SparkJobDefinition",  # Batch Spark
+            "Dataflow", "DataFlow",  # ETL (case variations in API)
+            "CopyJob",  # Data movement
+        ],
+        "Storage": [
+            "Lakehouse",  # Delta Lake storage
+            "Warehouse",  # SQL analytics
+            "KQLDatabase", "KustoDatabase",  # Real-time analytics (alias)
+            "MirroredDatabase",  # Database mirroring
+            "SnowflakeDatabase",  # External Snowflake connection
+        ],
+        "Analytics": [
+            "KQLQueryset",  # KQL queries
+            "SemanticModel", "Dataset",  # Power BI models
+            "Report", "Dashboard",  # Power BI visuals
+            "Datamart",  # Self-service analytics
+        ],
+        "Realtime": [
+            "Eventstream",  # Event ingestion
+            "Reflex",  # Real-time reactions
+        ],
+        "Infrastructure": [
+            "Environment",  # Spark/Python environments
+            "MLModel",  # Deployed ML models
+            "MLExperiment",  # ML experiments
+            "GraphQLApi",  # API endpoints
+        ],
     }
     
     def categorize_item(self, item_type: str) -> str:

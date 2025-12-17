@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.2 (January 2025) - Coverage Expansion Release
+
+### Fixed
+- **Expanded Activity Type Coverage** - `ACTIVITY_TYPES` dictionary now covers 61 activity types (was 19)
+  - Achieved 100% coverage of observed activity types in tenant data
+  - Added categories: Spark Operations, Lakehouse Operations, ML Operations, and more
+  - Eliminates "Unknown" activity type classification for known operations
+
+- **Expanded Item Type Coverage** - All item type dictionaries now cover 100% of observed types
+  - `ITEM_CATEGORIES` in star_schema_builder.py: Added Pipeline, SynapseNotebook, DataFlow, CopyJob, KustoDatabase, SnowflakeDatabase, MLExperiment, Dataset, Datamart
+  - `fabric_types` in pipeline.py: Added same expanded set for Fabric activity detection
+  - `type_map` in enrichment.py: Expanded URL builder to support 20+ Fabric item types
+  - `SUPPORTED_JOB_ITEM_TYPES` in extract_fabric_item_details.py: Added Pipeline, SynapseNotebook, DataFlow, CopyJob, Dataset
+
+### Investigated (Not Bugs)
+- **"Unknown" workspace_name values** - 968 records from deleted workspaces or cross-tenant activities
+- **"Unknown" submitted_by values** - 65,796 system-initiated activities (ViewSparkAppLog, CreateCheckpoint, etc.)
+- **NULL submitted_by values** - 29,176 scheduled pipeline/Snowflake runs without user identity
+
+---
+
 ## 0.3.1 (December 2024) - Smart Merge Fix Release
 
 ### Fixed

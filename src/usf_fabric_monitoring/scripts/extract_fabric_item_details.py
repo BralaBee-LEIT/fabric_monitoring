@@ -124,10 +124,21 @@ def run_item_details_extraction(workspace_id: str = None, output_dir: str = "exp
             "lakehouses": []
         }
         
-        # List of item types that support job instances
+        # Expanded list of item types that support job instances via Fabric API
+        # Note: Not all Fabric item types expose job history - this list is based on
+        # documented API support and observed behavior. Items not in this list may
+        # still have job history that's exposed through different endpoints.
         SUPPORTED_JOB_ITEM_TYPES = {
-            "DataPipeline", "Notebook", "SparkJobDefinition", 
-            "Dataflow", "Datamart", "SemanticModel"
+            # Core compute items with job history
+            "DataPipeline", "Pipeline",  # Data orchestration
+            "Notebook", "SynapseNotebook",  # Interactive compute
+            "SparkJobDefinition",  # Batch Spark jobs
+            "Dataflow", "DataFlow",  # ETL (case variations in API)
+            # Analytics items with refresh jobs
+            "Datamart",  # Self-service analytics
+            "SemanticModel", "Dataset",  # Power BI models (alias)
+            # Additional items that may support jobs
+            "CopyJob",  # Data movement operations
         }
         
         for ws in workspaces:

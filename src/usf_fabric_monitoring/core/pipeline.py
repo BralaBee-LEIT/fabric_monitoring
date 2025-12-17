@@ -523,12 +523,21 @@ class MonitorHubPipeline:
         if activity.get("source") == "JobHistory":
             return True
 
-        # List of known Fabric item types
+        # Expanded list of known Fabric item types (covering all observed types)
         fabric_types = {
-            "DataPipeline", "Notebook", "SparkJobDefinition", 
-            "Lakehouse", "Warehouse", "KQLDatabase", "KQLQueryset", 
-            "Eventstream", "Reflex", "Environment", "MLModel",
-            "Dataflow", "Datamart", "GraphQLApi", "MirroredDatabase"
+            # Compute
+            "DataPipeline", "Pipeline", "Notebook", "SynapseNotebook",
+            "SparkJobDefinition", "Dataflow", "DataFlow", "CopyJob",
+            # Storage
+            "Lakehouse", "Warehouse", "KQLDatabase", "KustoDatabase",
+            "MirroredDatabase", "SnowflakeDatabase",
+            # Analytics
+            "KQLQueryset", "SemanticModel", "Dataset", "Report",
+            "Dashboard", "Datamart",
+            # Realtime
+            "Eventstream", "Reflex",
+            # Infrastructure
+            "Environment", "MLModel", "MLExperiment", "GraphQLApi",
         }
         
         # List of known Fabric activity operations

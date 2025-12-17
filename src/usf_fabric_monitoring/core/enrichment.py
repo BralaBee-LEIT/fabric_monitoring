@@ -197,17 +197,40 @@ def build_object_url(workspace_id: str, item_id: Optional[str], item_type: Optio
         return None
 
     base_url = "https://app.powerbi.com"
+    # Expanded type_map to cover all known Fabric item types
+    # Note: Fabric URL patterns vary by item type; "items" is the fallback
     type_map = {
+        # Power BI items
         "Report": "reports",
         "Dashboard": "dashboards",
         "SemanticModel": "datasets",
         "Dataset": "datasets",
+        "Datamart": "datamarts",
+        # Fabric Data Engineering
         "Lakehouse": "lakehouses",
         "Warehouse": "warehouses",
         "DataPipeline": "datapipelines",
+        "Pipeline": "datapipelines",
         "Notebook": "notebooks",
+        "SynapseNotebook": "notebooks",
         "Dataflow": "dataflows",
-        "SparkJobDefinition": "items",
+        "DataFlow": "dataflows",
+        "SparkJobDefinition": "sparkjobdefinitions",
+        "CopyJob": "items",
+        # Fabric Real-Time Analytics
+        "KQLDatabase": "kqldatabases",
+        "KustoDatabase": "kqldatabases",
+        "KQLQueryset": "kqlquerysets",
+        "Eventstream": "eventstreams",
+        # Fabric Data Science
+        "MLModel": "mlmodels",
+        "MLExperiment": "mlexperiments",
+        "Environment": "environments",
+        # Other Fabric items
+        "MirroredDatabase": "mirroreddatabases",
+        "SnowflakeDatabase": "items",  # External connection
+        "Reflex": "reflexes",
+        "GraphQLApi": "graphqlapis",
     }
 
     segment = type_map.get(item_type or "") or "items"
