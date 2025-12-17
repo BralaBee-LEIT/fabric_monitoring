@@ -35,6 +35,9 @@ import numpy as np
 from .utils import resolve_path
 from .logger import setup_logging
 
+# Module logger
+logger = logging.getLogger(__name__)
+
 
 # =============================================================================
 # STAR SCHEMA DDL DEFINITIONS
@@ -751,6 +754,17 @@ class ActivityTypeDimensionBuilder(DimensionBuilder):
         "StopNotebookSession": ("Compute", False, True),
         "ConfigureNotebook": ("Compute", False, True),
         
+        # Job History Activity Types (from Fabric Job History API)
+        "Pipeline": ("Compute", True, True),
+        "PipelineRunNotebook": ("Compute", True, True),
+        "Refresh": ("Compute", True, True),
+        "Publish": ("Compute", True, True),
+        "RunNotebookInteractive": ("Compute", True, True),
+        "DataflowGen2": ("Compute", True, True),
+        "SparkJob": ("Compute", True, True),
+        "ScheduledNotebook": ("Compute", True, True),
+        "OneLakeShortcut": ("Compute", True, True),
+        
         # Spark/Livy Operations
         "ViewSparkAppLog": ("Spark", False, True),
         "ViewSparkApplication": ("Spark", False, True),
@@ -892,6 +906,8 @@ class FactActivityBuilder(DimensionBuilder):
         
         # Build lookup dictionaries for efficient FK resolution
         self.workspace_lookup = self._build_lookup(dim_workspace, "workspace_id", "workspace_sk")
+        # Fallback lookup by workspace_name (for records without workspace_id, e.g., job failures)
+        self.workspace_name_lookup = self._build_lookup(dim_workspace, "workspace_name", "workspace_sk")
         self.item_lookup = self._build_lookup(dim_item, "item_id", "item_sk")
         self.user_lookup = self._build_lookup(dim_user, "user_principal_name", "user_sk")
         self.activity_type_lookup = self._build_lookup(dim_activity_type, "activity_type", "activity_type_sk")
@@ -950,20 +966,37 @@ class FactActivityBuilder(DimensionBuilder):
             is_long_running = 1 if duration_seconds > self.LONG_RUNNING_THRESHOLD_SECONDS else 0
             
             # Build date/time keys (handle NaT/None)
-            if start_time and pd.notna(start_time):
-                date_sk = int(start_time.strftime("%Y%m%d"))
+            # Use start_time if available, fallback to end_time (for job failures without start_time)
+            event_time = start_time
+            if not event_time or pd.isna(event_time):
+                end_time_str = activity.get("end_time")
+                if end_time_str:
+                    try:
+                        event_time = pd.to_datetime(end_time_str, utc=True)
+                    except Exception:
+                        event_time = None
+            
+            if event_time and pd.notna(event_time):
+                date_sk = int(event_time.strftime("%Y%m%d"))
                 # Round to nearest 15 minutes for time_sk
-                hour = start_time.hour
-                minute = (start_time.minute // 15) * 15
+                hour = event_time.hour
+                minute = (event_time.minute // 15) * 15
                 time_sk = hour * 100 + minute
-                activity_date = start_time.date()
+                activity_date = event_time.date()
             else:
                 date_sk = None
                 time_sk = None
                 activity_date = None
             
             # Resolve foreign keys
-            workspace_sk = self.workspace_lookup.get(str(activity.get("workspace_id")))
+            # Try workspace_id first, fallback to workspace_name (for job failures without workspace_id)
+            workspace_id = activity.get("workspace_id")
+            workspace_sk = self.workspace_lookup.get(str(workspace_id)) if workspace_id else None
+            if workspace_sk is None:
+                workspace_name = activity.get("workspace_name")
+                if workspace_name:
+                    workspace_sk = self.workspace_name_lookup.get(str(workspace_name))
+            
             item_sk = self.item_lookup.get(str(activity.get("item_id")))
             user_sk = self.user_lookup.get(str(activity.get("submitted_by")))
             activity_type_sk = self.activity_type_lookup.get(
@@ -1485,8 +1518,8 @@ def build_star_schema_from_pipeline_output(
     """
     Build star schema from Monitor Hub pipeline output directory.
     
-    Reads from activities_master CSV files which contain Smart Merge enriched data
-    (accurate failure status from job details correlation).
+    Priority: Loads from parquet/activities_*.parquet (28 columns, full data including
+    workspace_name, failure_reason, user details) first, falls back to activities_master CSV.
     
     Args:
         pipeline_output_dir: Directory containing pipeline outputs
@@ -1495,12 +1528,24 @@ def build_star_schema_from_pipeline_output(
     """
     pipeline_path = Path(pipeline_output_dir)
     
-    # Find latest activities_master CSV (contains Smart Merge enriched data)
-    activities_files = sorted(pipeline_path.glob("activities_master_*.csv"), reverse=True)
-    if not activities_files:
-        raise FileNotFoundError(f"No activities_master CSV files found in {pipeline_path}")
+    # Priority 1: Look for parquet files (28 columns - complete data)
+    parquet_path = pipeline_path / "parquet"
+    parquet_files = sorted(parquet_path.glob("activities_*.parquet"), reverse=True) if parquet_path.exists() else []
     
-    activities_df = pd.read_csv(activities_files[0])
+    if parquet_files:
+        logger.info(f"Loading activities from parquet: {parquet_files[0]}")
+        activities_df = pd.read_parquet(parquet_files[0])
+        logger.info(f"Loaded {len(activities_df):,} records with {len(activities_df.columns)} columns")
+    else:
+        # Fallback: CSV file (19 columns - limited data)
+        activities_files = sorted(pipeline_path.glob("activities_master_*.csv"), reverse=True)
+        if not activities_files:
+            raise FileNotFoundError(
+                f"No activities data found in {pipeline_path}. "
+                f"Expected parquet/activities_*.parquet or activities_master_*.csv"
+            )
+        logger.warning(f"Parquet not found, falling back to CSV: {activities_files[0]}")
+        activities_df = pd.read_csv(activities_files[0])
     activities = activities_df.to_dict(orient="records")
     
     # Optionally load lineage data

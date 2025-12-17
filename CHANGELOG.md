@@ -2,6 +2,84 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.8 (December 2025) - Job History Activity Types Fix
+
+### Fixed
+- **Critical: Activity Types for Failures** - Failed activities now show correct type instead of "Unknown"
+  - Root cause: `ActivityTypeDimensionBuilder.ACTIVITY_TYPES` was hardcoded with only Audit Log activity types
+  - Job History activity types (Pipeline, PipelineRunNotebook, Refresh, Publish, RunNotebookInteractive) were missing
+  - Fix: Added 9 new activity types to dimension builder: Pipeline, PipelineRunNotebook, Refresh, Publish, RunNotebookInteractive, DataflowGen2, SparkJob, ScheduledNotebook, OneLakeShortcut
+  - Result: 1,237 failures now correctly distributed (Pipeline=973, PipelineRunNotebook=176, Refresh=81, Publish=4, RunNotebookInteractive=3)
+
+### Enhanced
+- **Notebook Cell 20 (Activity Type Analysis)** - Now shows both volume and failures
+  - "Top 15 by Volume" table for overall activity distribution
+  - "Activity Types with Failures (All)" table showing all types with failures and their counts
+
+### Documentation
+- **`.github/copilot-instructions.md`** - Comprehensive rewrite with:
+  - Smart Merge algorithm documentation (how Activity Events + Job History are correlated)
+  - Workspace name enrichment flow
+  - Conda environment requirements (`fabric-monitoring` activation mandatory)
+  - Data patterns and counting conventions (`record_count` sum vs `activity_id` count)
+  - Common pitfalls and debugging guidance
+
+---
+
+## 0.3.7 (December 2025) - Complete Failure Dimension Coverage
+
+### Fixed
+- **Critical: Date/Time Keys for Failed Records** - Failed records now have complete dimension coverage
+  - Root cause: Failed job history records have `end_time` but NULL `start_time`/`creation_time`
+  - Fix: Added `end_time` fallback in `FactActivityBuilder.build_from_activities()` for date_sk/time_sk calculation
+  - Result: 100% of 1,237 failed records now have valid date_sk, time_sk, workspace_sk, status_sk
+
+- **Notebook Cell 32 (Monthly Trend)** - Fixed column name error
+  - Changed `month` → `month_number` to match actual dim_date schema
+
+### Verified
+- **Consistency Check PASSED**: All dimension joins now return consistent 1,237 failures
+  - After date join: 1,237 failures ✓
+  - After time join: 1,237 failures ✓
+  - After workspace join: 1,237 failures ✓
+- Monthly breakdown: Nov 2025 = 995 failures, Dec 2025 = 242 failures
+- All analytical notebook cells now show consistent failure counts
+
+---
+
+## 0.3.6 (December 2025) - Failure Tracking Fix
+
+### Fixed
+- **Critical: Failure Tracking Restored** - Job failures now correctly tracked after data source change
+  - Root cause: Failed records from job history have `workspace_name` but NULL `workspace_id`
+  - Fix: Added `workspace_name_lookup` fallback in `FactActivityBuilder` when `workspace_id` is NULL
+  - Result: 1,237 failed activities now correctly mapped (was 0 due to missing workspace_sk)
+
+### Verified
+- **Failure counts by environment**: DEV=445, Unknown=721, TEST=40, UAT=31, PRD=0
+- All 1,237 failed records now have valid `workspace_sk`
+- Environment comparison query now shows accurate failure counts
+
+---
+
+## 0.3.5 (December 2025) - Data Source Correction Release
+
+### Fixed
+- **Critical Data Source Fix** - `build_star_schema_from_pipeline_output()` now loads from parquet (28 columns) instead of CSV (19 columns)
+  - Priority 1: `parquet/activities_*.parquet` - Complete data with workspace_name, failure_reason, user details
+  - Fallback: `activities_master_*.csv` - Limited data (legacy format)
+  - **Impact**: Star schema now has full activity context including `workspace_name`, `failure_reason`, `UserId`, `UserAgent`, `ClientIP`, `source`
+
+- **Notebook "Activity by Hour" Query** - Fixed KeyError for dim_time columns
+  - Changed `hour` → `hour_24` and `period_of_day` → `time_period` to match actual schema
+  - Added proper `tables` dictionary lookup for `fact_activity` and `dim_time`
+
+### Technical
+- Added module-level `logger` to `star_schema_builder.py` (was missing causing NameError)
+- All notebook analytical queries now use consistent pattern: check `tables` dict, use `record_count` sum
+
+---
+
 ## 0.3.4 (December 2025) - Workspace Name Enrichment Release
 
 ### Added
