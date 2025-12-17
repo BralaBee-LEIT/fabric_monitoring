@@ -695,12 +695,23 @@ class ActivityTypeDimensionBuilder(DimensionBuilder):
     """Builds the Activity Type reference dimension."""
     
     # Known activity types and their classifications
+    # Format: "ActivityType": (category, is_compute_activity, is_fabric_native)
     ACTIVITY_TYPES = {
         # File Operations
         "RenameFileOrDirectory": ("File Operations", False, True),
         "DeleteFile": ("File Operations", False, True),
+        "DeleteFileOrBlob": ("File Operations", False, True),
         "CreateFile": ("File Operations", False, True),
         "MoveFile": ("File Operations", False, True),
+        "CreateDirectory": ("File Operations", False, True),
+        "SetFileProperties": ("File Operations", False, True),
+        
+        # Artifact Operations (CRUD on Fabric items)
+        "ReadArtifact": ("Artifact Operations", False, True),
+        "CreateArtifact": ("Artifact Operations", False, True),
+        "UpdateArtifact": ("Artifact Operations", False, True),
+        "DeleteArtifact": ("Artifact Operations", False, True),
+        "ShareArtifact": ("Artifact Operations", False, True),
         
         # Compute Operations
         "ExecutePipeline": ("Compute", True, True),
@@ -708,20 +719,65 @@ class ActivityTypeDimensionBuilder(DimensionBuilder):
         "ExecuteSparkJob": ("Compute", True, True),
         "ExecuteDataflow": ("Compute", True, False),
         "RunArtifact": ("Compute", True, True),
+        "CancelRunningArtifact": ("Compute", False, True),
+        "StartRunNotebook": ("Compute", True, True),
+        "StopNotebookSession": ("Compute", False, True),
+        "ConfigureNotebook": ("Compute", False, True),
+        
+        # Spark/Livy Operations
+        "ViewSparkAppLog": ("Spark", False, True),
+        "ViewSparkApplication": ("Spark", False, True),
+        "ViewSparkAppInputOutput": ("Spark", False, True),
+        "LoadSparkAppLog": ("Spark", False, True),
+        "LivySparkSessionAcquired": ("Spark", True, True),
+        "LivySparkSessionCancelled": ("Spark", False, True),
+        "CreateCheckpoint": ("Spark", False, True),
+        "MountStorageByMssparkutils": ("Spark", False, True),
+        
+        # Lakehouse Operations
+        "ReadLakehouse": ("Lakehouse", False, True),
+        "WriteLakehouse": ("Lakehouse", False, True),
+        "ListLakehouseTables": ("Lakehouse", False, True),
+        "GetLakehouseTableDetails": ("Lakehouse", False, True),
+        "PreviewLakehouseTable": ("Lakehouse", False, True),
+        "LoadLakehouseTable": ("Lakehouse", False, True),
+        "DeleteLakehouseTable": ("Lakehouse", False, True),
+        "GetDataArtifactTableDetails": ("Lakehouse", False, True),
+        
+        # Shortcut Operations
+        "CreateShortcut": ("Shortcut", False, True),
+        "DeleteShortcut": ("Shortcut", False, True),
         
         # Query Operations
         "ExecuteKQLQuery": ("Query", True, True),
         "ExecuteSQLQuery": ("Query", True, True),
-        "ReadLakehouse": ("Query", False, True),
-        "WriteLakehouse": ("Query", False, True),
+        "ConnectWarehouseAndSqlAnalyticsEndpointLakehouseFromExternalApp": ("Query", False, True),
+        "CreateSqlQueryFromWarehouse": ("Query", False, True),
+        "CreateVisualQueryFromWarehouse": ("Query", False, True),
+        "DeleteSavedQueryFromWarehouse": ("Query", False, True),
+        "GetArtifactSqlAuditConfiguration": ("Query", False, True),
         
-        # Admin Operations
+        # Admin/Workspace Operations
         "CreateWorkspace": ("Admin", False, True),
         "UpdateWorkspace": ("Admin", False, True),
         "DeleteWorkspace": ("Admin", False, True),
         "AddWorkspaceUser": ("Admin", False, True),
         
-        # Report Operations
+        # Environment Operations
+        "StartPublishEnvironment": ("Environment", False, True),
+        "FinishPublishEnvironment": ("Environment", False, True),
+        "ReadEnvironmentResource": ("Environment", False, True),
+        "UpdateEnvironmentSparkSettings": ("Environment", False, True),
+        
+        # ML/AI Operations
+        "DeleteModelEndpoint": ("ML", False, True),
+        "RequestCopilot": ("ML", False, True),
+        
+        # Security/Compliance
+        "SensitivityLabelApplied": ("Security", False, True),
+        "SensitivityLabelChanged": ("Security", False, True),
+        
+        # Report/Analytics Operations
         "ViewReport": ("Analytics", False, False),
         "RefreshDataset": ("Compute", True, False),
     }
