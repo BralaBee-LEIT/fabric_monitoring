@@ -12,7 +12,7 @@ YELLOW = \033[1;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help create update delete status install validate-config test test-smoke clean lint format check-env enforce-access monitor-hub extract-lineage compute-analysis generate-reports audit-sp-access extract-details build export activate dev-setup dev-check test-duration-fix test-offline test-comparative test-complete-pipeline test-all
+.PHONY: help create update delete status install validate-config test test-smoke clean lint format check-env enforce-access monitor-hub extract-lineage compute-analysis generate-reports audit-sp-access extract-details build export activate dev-setup dev-check test-duration-fix test-offline test-comparative test-complete-pipeline test-all star-schema star-schema-ddl star-schema-describe
 
 # Default target
 help:
@@ -40,6 +40,9 @@ help:
 	@echo "  $(GREEN)compute-analysis$(NC) - Run Compute Analysis (alias for monitor-hub)"
 	@echo "  $(GREEN)generate-reports$(NC) - Generate reports from existing extracted data"
 	@echo "  $(GREEN)audit-sp-access$(NC)  - Audit workspaces where Service Principal is missing"
+	@echo "  $(GREEN)star-schema$(NC) - Build star schema for analytics from Monitor Hub data"
+	@echo "  $(GREEN)star-schema-ddl$(NC) - Print DDL statements for star schema tables"
+	@echo "  $(GREEN)star-schema-describe$(NC) - Print schema description and sample queries"
 	@echo ""
 	@echo "$(YELLOW)Usage examples:$(NC)"
 	@echo "  make create       # Create new environment"
@@ -56,6 +59,12 @@ help:
 	@echo "  make monitor-hub DAYS=7"
 	@echo "  make monitor-hub DAYS=30 MEMBER_ONLY=1"
 	@echo "  make monitor-hub DAYS=14 OUTPUT_DIR=exports/custom"
+	@echo ""
+	@echo "$(YELLOW)Star Schema examples:$(NC)"
+	@echo "  make star-schema                           # Incremental build"
+	@echo "  make star-schema FULL_REFRESH=1            # Full refresh"
+	@echo "  make star-schema OUTPUT_DIR=exports/custom # Custom output"
+	@echo "  make star-schema-ddl                       # Print DDL statements"
 
 # CREATE: Create new conda environment
 create:
@@ -352,3 +361,34 @@ test-complete-pipeline:
 
 test-all: test test-duration-fix test-comparative test-complete-pipeline
 	@echo "$(GREEN)Comprehensive test suite completed$(NC)"
+
+# Star Schema Builder
+star-schema:
+	@echo "$(GREEN)Building Star Schema for Analytics$(NC)"
+	@if conda env list | grep -q "^$(ENV_NAME) "; then \
+		INPUT_ARG=$${INPUT_DIR:+--input-dir $$INPUT_DIR}; \
+		OUTPUT_ARG=$${OUTPUT_DIR:+--output-dir $$OUTPUT_DIR}; \
+		FULL_REFRESH_ARG=$${FULL_REFRESH:+--full-refresh}; \
+		conda run --no-capture-output -n $(ENV_NAME) python src/usf_fabric_monitoring/scripts/build_star_schema.py $$INPUT_ARG $$OUTPUT_ARG $$FULL_REFRESH_ARG; \
+	else \
+		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
+		echo "$(YELLOW)Create it first with: make create$(NC)"; \
+	fi
+
+star-schema-ddl:
+	@echo "$(GREEN)Generating Star Schema DDL$(NC)"
+	@if conda env list | grep -q "^$(ENV_NAME) "; then \
+		conda run --no-capture-output -n $(ENV_NAME) python src/usf_fabric_monitoring/scripts/build_star_schema.py --ddl-only; \
+	else \
+		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
+		echo "$(YELLOW)Create it first with: make create$(NC)"; \
+	fi
+
+star-schema-describe:
+	@echo "$(GREEN)Describing Star Schema$(NC)"
+	@if conda env list | grep -q "^$(ENV_NAME) "; then \
+		conda run --no-capture-output -n $(ENV_NAME) python src/usf_fabric_monitoring/scripts/build_star_schema.py --describe; \
+	else \
+		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
+		echo "$(YELLOW)Create it first with: make create$(NC)"; \
+	fi

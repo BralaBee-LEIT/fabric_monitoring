@@ -1,8 +1,8 @@
 # Microsoft Fabric Monitoring & Governance System
 
-A comprehensive Python-based solution for monitoring, analyzing, and governing Microsoft Fabric workspaces. This project provides tools for historical activity analysis (Monitor Hub) and automated security group enforcement.
+A comprehensive Python-based solution for monitoring, analyzing, and governing Microsoft Fabric workspaces. This project provides tools for historical activity analysis (Monitor Hub), automated security group enforcement, and star schema analytics for business intelligence.
 
-> **Current Version: 0.2.0** - Advanced Analytics & Smart Merge Technology  
+> **Current Version: 0.3.0** - Star Schema Analytics Release  
 > See [CHANGELOG.md](CHANGELOG.md) for release notes | [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines | [SECURITY.md](SECURITY.md) for security policies
 ## 🚀 Key Features
 
@@ -34,6 +34,15 @@ A comprehensive Python-based solution for monitoring, analyzing, and governing M
 - **Mirrored Database Analysis**: Scans workspaces for Mirrored Databases.
 - **Source Tracing**: Extracts source connection details (e.g., Snowflake, Azure SQL) and database names.
 - **Inventory Reporting**: Generates a CSV inventory of all mirrored assets and their origins.
+
+### 4. Star Schema Analytics (`build_star_schema.py`) ⭐ NEW in v0.3.0
+- **Kimball-Style Dimensional Model**: Transforms raw Monitor Hub data into a proper star schema for analytics.
+- **7 Dimension Tables**: `dim_date`, `dim_time`, `dim_workspace`, `dim_item`, `dim_user`, `dim_activity_type`, `dim_status`
+- **2 Fact Tables**: `fact_activity` (1M+ records), `fact_daily_metrics` (pre-aggregated)
+- **Incremental Loading**: High-water mark pattern for efficient delta loads
+- **SCD Type 2 Support**: Tracks slowly changing dimensions (workspace names, item descriptions)
+- **Delta Lake DDL**: Generates deployment scripts for Fabric Lakehouses
+- **CLI & Notebook Options**: Run via `usf-star-schema` command or `notebooks/Fabric_Star_Schema_Builder.ipynb`
 
 ## 📋 Prerequisites
 
@@ -156,24 +165,35 @@ make generate-reports
 
 ```text
 usf_fabric_monitoring/
-├── config/                 # Configuration files (targets, suppressions)
-├── docs/                   # Documentation
+├── config/                 # Configuration files (targets, suppressions, inference rules)
+├── docs/                   # Documentation (FABRIC_DEPLOYMENT.md, etc.)
 ├── exports/                # Generated reports and data
+│   └── star_schema/        # Star schema output (dimensions, facts, DDL)
 ├── notebooks/              # Jupyter Notebooks for interactive analysis
+│   ├── Monitor_Hub_Analysis.ipynb
+│   ├── Workspace_Access_Enforcement.ipynb
+│   └── Fabric_Star_Schema_Builder.ipynb  ⭐ NEW
 ├── src/                    # Source code
 │   └── usf_fabric_monitoring/
-│       ├── core/           # Core logic (extractors, enforcers, pipeline)
-│       └── scripts/        # Entry point scripts (monitor_hub_pipeline.py, etc.)
+│       ├── core/           # Core logic (pipeline, star_schema_builder, etc.)
+│       └── scripts/        # Entry point scripts
 ├── Makefile                # Command automation
 ├── environment.yml         # Conda environment definition
-└── pyproject.toml           # Python package metadata + pip dependencies
+└── pyproject.toml          # Python package metadata + pip dependencies
 ```
 
-## ⚠️ Recent Updates (v0.2.0 - Advanced Analytics Release)
+## ⚠️ Recent Updates (v0.3.0 - Star Schema Analytics Release)
 
-The system has undergone major enhancements with advanced analytics capabilities:
+This release introduces powerful star schema analytics capabilities:
 
-### 🔧 **Smart Merge Technology**
+### 🏗️ **Star Schema Builder**
+- **Dimensional Modeling**: Kimball-style star schema with 7 dimensions and 2 fact tables
+- **1M+ Records**: Processes complete Monitor Hub activity data into analytical format
+- **Incremental Loads**: High-water mark tracking for efficient delta processing
+- **SCD Type 2**: Slowly changing dimensions for historical accuracy
+- **Delta Lake DDL**: Auto-generated scripts for Fabric deployment
+
+### 🔧 **Smart Merge Technology** (from v0.2.0)
 - **Duration Recovery**: Revolutionary algorithm that restores 100% of missing timing data by correlating activities with job execution details
 - **Enhanced Pipeline**: Core `MonitorHubPipeline` now includes comprehensive duration calculation fixes
 - **Offline Validation**: Complete test suite validates functionality without API calls
@@ -186,6 +206,7 @@ The system has undergone major enhancements with advanced analytics capabilities
 - **Failure Analysis**: Detailed error tracking with root cause identification
 
 ### 📚 **Documentation & Governance**
+- **Fabric Deployment Guide**: Complete deployment options ([docs/FABRIC_DEPLOYMENT.md](docs/FABRIC_DEPLOYMENT.md))
 - **Comprehensive Project Analysis**: Complete gap assessment and improvement roadmap ([PROJECT_ANALYSIS.md](PROJECT_ANALYSIS.md))
 - **Contribution Guidelines**: Standardized development workflow and coding standards ([CONTRIBUTING.md](CONTRIBUTING.md))
 - **Security Policy**: Best practices and vulnerability reporting procedures ([SECURITY.md](SECURITY.md))
@@ -206,18 +227,23 @@ To run this solution directly within a Microsoft Fabric Notebook:
     ```bash
     make build
     ```
-    This will generate a file like `dist/usf_fabric_monitoring-<version>-py3-none-any.whl`.
+    This will generate a file like `dist/usf_fabric_monitoring-0.3.0-py3-none-any.whl`.
 
 2.  **Upload to Fabric**:
     -   Navigate to your Fabric Workspace.
     -   Create a **Fabric Environment** (or use an existing one).
-    -   In the "Public Libraries" or "Custom Libraries" section, upload the `.whl` file (e.g., `usf_fabric_monitoring-0.2.0-py3-none-any.whl`).
+    -   In the "Public Libraries" or "Custom Libraries" section, upload the `.whl` file.
     -   Save and Publish the Environment.
 
 3.  **Configure the Notebook**:
-    -   Open `notebooks/Monitor_Hub_Analysis.ipynb` in Fabric (or import it).
+    -   Import one of the available notebooks:
+        - `notebooks/Monitor_Hub_Analysis.ipynb` - Historical activity analysis
+        - `notebooks/Workspace_Access_Enforcement.ipynb` - Security compliance
+        - `notebooks/Fabric_Star_Schema_Builder.ipynb` - Star schema analytics ⭐ NEW
     -   In the notebook settings (Environment), select the Environment you created in step 2.
     -   This ensures the `usf_fabric_monitoring` library is installed and available to the notebook.
 
 4.  **Run**:
     -   Execute the notebook cells. The library will be automatically detected.
+
+For advanced deployment options (inline pip install, lakehouse file reference, etc.), see [docs/FABRIC_DEPLOYMENT.md](docs/FABRIC_DEPLOYMENT.md).

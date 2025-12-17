@@ -38,7 +38,7 @@ We transformed the local scripts into a distributable format.
     pip install build
     python -m build
     ```
-3.  This generates a `.whl` file in the `dist/` folder (e.g., `usf_fabric_monitoring-0.2.0-py3-none-any.whl`).
+3.  This generates a `.whl` file in the `dist/` folder (e.g., `usf_fabric_monitoring-0.3.0-py3-none-any.whl`).
 
 ### Phase 2: Configure Fabric Environment
 1.  In your Fabric Workspace, create a new **Environment** (e.g., `Monitoring_Env`).
@@ -50,6 +50,7 @@ We transformed the local scripts into a distributable format.
 1.  Import the notebooks from the `notebooks/` folder into your Fabric Workspace:
     *   `Monitor_Hub_Analysis.ipynb`
     *   `Workspace_Access_Enforcement.ipynb`
+    *   `Fabric_Star_Schema_Builder.ipynb` ⭐ NEW in v0.3.0
 2.  Open each notebook and **Attach the Environment** created in Phase 2.
 
 ---
@@ -103,6 +104,19 @@ Legacy aliases (supported): `CLIENT_ID`, `CLIENT_SECRET`, `TENANT_ID`.
     *   `enforce`: Actively adds the Service Principal/Group to workspaces.
 *   **Why run this?**: If you see **401 Unauthorized** errors in the Analysis pipeline, run this in `enforce` mode to grant your Service Principal the necessary permissions to scan those workspaces.
 
+### 3. Star Schema Builder (`Fabric_Star_Schema_Builder.ipynb`) ⭐ NEW
+**Goal**: Transform Monitor Hub raw data into a Kimball-style star schema for analytics.
+*   **Input**: CSV/Parquet from Monitor Hub Analysis pipeline.
+*   **Output**: 
+    *   7 dimension tables (`dim_date`, `dim_time`, `dim_workspace`, `dim_item`, `dim_user`, `dim_activity_type`, `dim_status`)
+    *   2 fact tables (`fact_activity`, `fact_daily_metrics`)
+    *   Delta Lake DDL scripts for Lakehouse deployment
+*   **Key Features**:
+    *   Incremental loading with high-water mark tracking
+    *   SCD Type 2 support for slowly changing dimensions
+    *   Pre-aggregated daily metrics for dashboards
+*   **Use Case**: Build semantic models, Power BI reports, or run SQL analytics directly on star schema tables.
+
 ---
 
 ## 🔧 Troubleshooting
@@ -115,6 +129,7 @@ Legacy aliases (supported): `CLIENT_ID`, `CLIENT_SECRET`, `TENANT_ID`.
 - `usf-monitor-hub --days 14 --member-only --output-dir exports/monitor_hub_analysis`
 - `usf-enforce-access --help`
 - `usf-validate-config`
+- `usf-star-schema --help` ⭐ NEW
 
 ### "401 Client Error: Unauthorized" during Analysis
 *   **Cause**: The Service Principal can see *that* a workspace exists (Tenant Admin rights) but cannot see *inside* it (Workspace Member rights).
