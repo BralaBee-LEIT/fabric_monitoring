@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.10 (December 2025) - Direct Lake Relationship Compatibility Fix
+
+### Fixed
+- **Critical: Surrogate Key Data Types** - Fixed Direct Lake relationship errors in Power BI/Fabric
+  - Error: `The operation is not allowed because the data types of Direct Lake relationship between foreign key column 'fact_activity'[user_sk](Double) and primary key column 'dim_user'[user_sk](Int64) are incompatible`
+  - Root cause: When surrogate keys contain NULL values, pandas converts the column to `float64` (Double) instead of integer
+  - Fix: `_save_dataframe()` now enforces `Int64` (nullable integer) type for all `*_sk` columns before saving to parquet
+  - Result: All dimension relationships now work correctly in Direct Lake semantic models
+
+### Changed
+- All surrogate key columns (`date_sk`, `time_sk`, `workspace_sk`, `item_sk`, `user_sk`, `activity_type_sk`, `status_sk`) are now saved as `Int64` type
+- This ensures compatibility with Power BI Direct Lake mode which requires matching data types for relationships
+
+---
+
 ## 0.3.9 (December 2025) - Spark-Compatible Parquet & Fabric Path Fixes
 
 ### Fixed

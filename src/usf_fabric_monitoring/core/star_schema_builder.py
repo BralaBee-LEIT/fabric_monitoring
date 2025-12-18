@@ -1223,8 +1223,20 @@ class StarSchemaBuilder:
         
         Uses microsecond precision (us) instead of nanosecond to ensure
         compatibility with Apache Spark in Microsoft Fabric.
+        
+        Also enforces Int64 (nullable integer) type for surrogate key columns
+        to ensure Direct Lake relationship compatibility in Power BI.
         """
         path = self.output_directory / f"{name}.parquet"
+        
+        # Enforce Int64 type for surrogate key columns (prevents Double conversion)
+        # This is critical for Direct Lake relationships in Power BI/Fabric
+        sk_columns = [col for col in df.columns if col.endswith('_sk')]
+        for col in sk_columns:
+            if col in df.columns:
+                # Convert to Int64 (nullable integer) - handles NaN values properly
+                df[col] = df[col].astype('Int64')
+        
         # Use microsecond precision for Spark compatibility
         # Spark doesn't support TIMESTAMP(NANOS,true) format
         df.to_parquet(
