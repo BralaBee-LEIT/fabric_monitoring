@@ -151,6 +151,8 @@ class MonitorHubPipeline:
         """
         Save merged data to Parquet files for Delta Table ingestion.
         
+        Uses microsecond timestamp precision for Spark compatibility.
+        
         Args:
             historical_data: The dictionary containing merged activities, workspaces, and items.
         """
@@ -158,6 +160,14 @@ class MonitorHubPipeline:
         parquet_dir.mkdir(parents=True, exist_ok=True)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Parquet write options for Spark compatibility
+        # Spark doesn't support TIMESTAMP(NANOS,true) - must use microseconds
+        parquet_kwargs = {
+            'index': False,
+            'coerce_timestamps': 'us',  # Microsecond precision
+            'allow_truncated_timestamps': True
+        }
         
         # 1. Save Activities
         activities = historical_data.get("activities", [])
@@ -170,7 +180,7 @@ class MonitorHubPipeline:
                         df_activities[col] = pd.to_datetime(df_activities[col], errors='coerce')
                 
                 activities_path = parquet_dir / f"activities_{timestamp}.parquet"
-                df_activities.to_parquet(activities_path, index=False)
+                df_activities.to_parquet(activities_path, **parquet_kwargs)
                 self.logger.info(f"Saved {len(activities)} activities to {activities_path}")
             except Exception as e:
                 self.logger.error(f"Failed to save activities to parquet: {e}")
@@ -181,7 +191,7 @@ class MonitorHubPipeline:
             try:
                 df_workspaces = pd.DataFrame(workspaces)
                 workspaces_path = parquet_dir / f"workspaces_{timestamp}.parquet"
-                df_workspaces.to_parquet(workspaces_path, index=False)
+                df_workspaces.to_parquet(workspaces_path, **parquet_kwargs)
                 self.logger.info(f"Saved {len(workspaces)} workspaces to {workspaces_path}")
             except Exception as e:
                 self.logger.error(f"Failed to save workspaces to parquet: {e}")
@@ -192,7 +202,7 @@ class MonitorHubPipeline:
             try:
                 df_items = pd.DataFrame(items)
                 items_path = parquet_dir / f"items_{timestamp}.parquet"
-                df_items.to_parquet(items_path, index=False)
+                df_items.to_parquet(items_path, **parquet_kwargs)
                 self.logger.info(f"Saved {len(items)} items to {items_path}")
             except Exception as e:
                 self.logger.error(f"Failed to save items to parquet: {e}")

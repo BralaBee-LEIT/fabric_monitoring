@@ -1219,9 +1219,20 @@ class StarSchemaBuilder:
         return None
     
     def _save_dataframe(self, df: pd.DataFrame, name: str) -> Path:
-        """Save DataFrame to Parquet."""
+        """Save DataFrame to Parquet with Spark-compatible timestamp format.
+        
+        Uses microsecond precision (us) instead of nanosecond to ensure
+        compatibility with Apache Spark in Microsoft Fabric.
+        """
         path = self.output_directory / f"{name}.parquet"
-        df.to_parquet(path, index=False)
+        # Use microsecond precision for Spark compatibility
+        # Spark doesn't support TIMESTAMP(NANOS,true) format
+        df.to_parquet(
+            path, 
+            index=False,
+            coerce_timestamps='us',  # Microsecond precision (Spark compatible)
+            allow_truncated_timestamps=True  # Allow truncation from ns to us
+        )
         self.logger.info(f"Saved {name} with {len(df)} records to {path}")
         return path
     
