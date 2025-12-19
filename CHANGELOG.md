@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.13 (December 2025) - Fabric vs Power BI Platform Classification
+
+### Added
+- **Platform Classification** - New columns in `dim_item` to distinguish Fabric from Power BI items:
+  - `platform`: 'Fabric' or 'Power BI' - easy to filter in reports
+  - `is_fabric_native`: Boolean flag for Fabric-only items
+  
+- **Item Type Classification**:
+  - `FABRIC_NATIVE_TYPES`: Lakehouse, Warehouse, Notebook, DataPipeline, Eventstream, KQLDatabase, etc.
+  - `POWERBI_TYPES`: Report, Dashboard, Dataset/SemanticModel, Dataflow, Datamart
+
+### Use Cases
+- Filter failure analysis to Fabric-only items: `WHERE platform = 'Fabric'`
+- Exclude Power BI reports from compute metrics: `WHERE is_fabric_native = TRUE`
+- Analyze by platform: `GROUP BY platform`
+
+---
+
 ## 0.3.12 (December 2025) - Capacity ID Enrichment
 
 ### Fixed

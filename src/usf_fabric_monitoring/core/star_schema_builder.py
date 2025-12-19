@@ -152,6 +152,8 @@ CREATE TABLE IF NOT EXISTS dim_item (
     item_name STRING,
     item_type STRING,                       -- DataPipeline, Notebook, Lakehouse, etc.
     item_category STRING,                   -- Compute, Storage, Analytics (derived)
+    platform STRING,                        -- 'Fabric' or 'Power BI'
+    is_fabric_native BOOLEAN,               -- True for Fabric-only items
     workspace_id STRING,                    -- For joining
     workspace_name STRING,
     
@@ -574,6 +576,29 @@ class ItemDimensionBuilder(DimensionBuilder):
         ],
     }
     
+    # Fabric-native item types (not Power BI)
+    # These are items that only exist in Microsoft Fabric, not in classic Power BI
+    FABRIC_NATIVE_TYPES = {
+        # Compute
+        "DataPipeline", "Pipeline", "Notebook", "SynapseNotebook",
+        "SparkJobDefinition", "CopyJob",
+        # Storage
+        "Lakehouse", "Warehouse", "KQLDatabase", "KustoDatabase",
+        "MirroredDatabase", "SnowflakeDatabase",
+        # Realtime
+        "Eventstream", "Reflex",
+        # Infrastructure
+        "Environment", "MLModel", "MLExperiment", "GraphQLApi",
+        # Data Engineering
+        "KQLQueryset",
+    }
+    
+    # Power BI item types (can exist in both Power BI and Fabric)
+    POWERBI_TYPES = {
+        "Report", "Dashboard", "Dataset", "SemanticModel",
+        "Dataflow", "DataFlow", "Datamart", "PaginatedReport",
+    }
+    
     def categorize_item(self, item_type: str) -> str:
         """Categorize item type into a broader category."""
         if not item_type:
@@ -583,6 +608,27 @@ class ItemDimensionBuilder(DimensionBuilder):
             if item_type in types:
                 return category
         return "Other"
+    
+    def get_platform(self, item_type: str) -> str:
+        """
+        Determine the platform for an item type.
+        
+        Returns:
+            'Fabric' - Fabric-native items (Lakehouse, Notebook, etc.)
+            'Power BI' - Power BI items (Report, Dashboard, Dataset)
+            'Unknown' - Unrecognized item type
+        """
+        if not item_type:
+            return "Unknown"
+        if item_type in self.FABRIC_NATIVE_TYPES:
+            return "Fabric"
+        if item_type in self.POWERBI_TYPES:
+            return "Power BI"
+        return "Unknown"
+    
+    def is_fabric_native(self, item_type: str) -> bool:
+        """Check if item type is Fabric-native (not Power BI)."""
+        return item_type in self.FABRIC_NATIVE_TYPES if item_type else False
     
     def build_from_activities(
         self,
@@ -607,6 +653,8 @@ class ItemDimensionBuilder(DimensionBuilder):
                 "item_name": activity.get("item_name") or "Unknown",
                 "item_type": item_type,
                 "item_category": self.categorize_item(item_type),
+                "platform": self.get_platform(item_type),  # 'Fabric' or 'Power BI'
+                "is_fabric_native": self.is_fabric_native(item_type),  # True/False
                 "workspace_id": activity.get("workspace_id"),
                 "workspace_name": activity.get("workspace_name"),
                 "source_type": None,
