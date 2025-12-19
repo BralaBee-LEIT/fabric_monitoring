@@ -134,10 +134,16 @@ class CSVExporter:
         for col in datetime_columns:
             if col in normalized_df.columns and normalized_df[col] is not None:
                 try:
-                    normalized_df[col] = pd.to_datetime(normalized_df[col], errors='coerce')
+                    # Use ISO8601 format for parsing to avoid dateutil fallback warning
+                    normalized_df[col] = pd.to_datetime(normalized_df[col], errors='coerce', format='ISO8601')
                     normalized_df[col] = normalized_df[col].dt.strftime('%Y-%m-%d %H:%M:%S UTC')
-                except:
-                    pass
+                except Exception:
+                    # Fallback to mixed format parsing if ISO8601 fails
+                    try:
+                        normalized_df[col] = pd.to_datetime(normalized_df[col], errors='coerce', format='mixed')
+                        normalized_df[col] = normalized_df[col].dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+                    except Exception:
+                        pass
         
         # Clean up numeric columns
         numeric_columns = ['DurationMs', 'Duration']

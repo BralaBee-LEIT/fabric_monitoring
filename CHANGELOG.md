@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.11 (December 2025) - Datetime Parsing Warning Fix
+
+### Fixed
+- **Pandas Datetime Warning** - Fixed `UserWarning: Could not infer format` in csv_exporter.py
+  - Root cause: `pd.to_datetime()` without explicit format triggers dateutil fallback warning
+  - Fix: Added explicit `format='ISO8601'` with fallback to `format='mixed'` for datetime column parsing
+  - Result: No more warnings when processing datetime columns in activity data
+
+---
+
 ## 0.3.10 (December 2025) - Direct Lake Relationship Compatibility Fix
 
 ### Fixed
