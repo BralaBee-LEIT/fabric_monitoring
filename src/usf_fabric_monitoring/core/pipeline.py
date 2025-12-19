@@ -515,8 +515,12 @@ class MonitorHubPipeline:
                     "type": activity.get("item_type") or "Unknown"
                 }
 
-        # Enrich workspace data with capacityId from Power BI Admin API
-        enriched_workspaces = self._enrich_workspaces_with_capacity(workspace_lookup)
+        # Capacity enrichment is OPT-IN only (set ENABLE_CAPACITY_ENRICHMENT=1 to enable)
+        # This avoids breaking existing pipelines with additional API calls
+        if os.getenv("ENABLE_CAPACITY_ENRICHMENT", "0") == "1":
+            workspaces_data = self._enrich_workspaces_with_capacity(workspace_lookup)
+        else:
+            workspaces_data = list(workspace_lookup.values())
 
         return {
             "analysis_period": {
@@ -525,7 +529,7 @@ class MonitorHubPipeline:
                 "days": days,
                 "description": f"{days}-day analysis window"
             },
-            "workspaces": enriched_workspaces,
+            "workspaces": workspaces_data,
             "items": list(item_lookup.values()),
             "activities": fabric_activities
         }

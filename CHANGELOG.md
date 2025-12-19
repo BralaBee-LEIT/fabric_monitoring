@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.15 (December 2025) - No Breaking Changes
+
+### Fixed
+- **Reverted capacity enrichment to OPT-IN** - The v0.3.12-0.3.14 capacity enrichment was causing pipeline failures
+  - **Default behavior is now unchanged from v0.3.11** - no additional API calls
+  - To enable capacity enrichment, set `ENABLE_CAPACITY_ENRICHMENT=1` before running pipeline
+  - This ensures backward compatibility with existing working pipelines
+
+### How to Enable Capacity Enrichment (Optional)
+```python
+import os
+os.environ["ENABLE_CAPACITY_ENRICHMENT"] = "1"
+# Then run pipeline
+```
+
+---
+
 ## 0.3.14 (December 2025) - Capacity Enrichment Resilience
 
 ### Fixed
