@@ -1122,9 +1122,9 @@ class StarSchemaBuilder:
         self.fact_activity: Optional[pd.DataFrame] = None
         self.fact_daily_metrics: Optional[pd.DataFrame] = None
     
-    def _load_workspace_lookup(self) -> Dict[str, str]:
+    def _load_workspace_lookup(self) -> Dict[str, Dict[str, Any]]:
         """
-        Load workspace ID to name mapping from parquet files.
+        Load workspace ID to full workspace data mapping from parquet files.
         
         Searches for workspace parquet files in common locations:
         1. Explicit path provided to constructor
@@ -1132,7 +1132,8 @@ class StarSchemaBuilder:
         3. notebooks/monitor_hub_analysis/parquet/workspaces_*.parquet
         
         Returns:
-            Dict mapping workspace_id to displayName
+            Dict mapping workspace_id to full workspace data dict
+            (includes displayName, capacityId, type, state, etc.)
         """
         if self._workspace_lookup is not None:
             return self._workspace_lookup
@@ -1165,16 +1166,23 @@ class StarSchemaBuilder:
                     df = pd.read_parquet(ws_path)
                     # Handle different column name conventions
                     id_col = 'id' if 'id' in df.columns else 'workspace_id'
-                    name_col = 'displayName' if 'displayName' in df.columns else 'workspace_name'
                     
-                    if id_col in df.columns and name_col in df.columns:
-                        self._workspace_lookup = dict(zip(df[id_col], df[name_col]))
-                        self.logger.info(f"Loaded {len(self._workspace_lookup)} workspace names from {ws_path}")
+                    if id_col in df.columns:
+                        # Convert DataFrame to dict of dicts (full workspace data)
+                        self._workspace_lookup = df.set_index(id_col).to_dict(orient='index')
+                        
+                        # Log capacity coverage
+                        capacity_col = 'capacityId' if 'capacityId' in df.columns else None
+                        if capacity_col:
+                            with_capacity = df[capacity_col].notna().sum()
+                            self.logger.info(f"Loaded {len(self._workspace_lookup)} workspaces from {ws_path} ({with_capacity} with capacityId)")
+                        else:
+                            self.logger.info(f"Loaded {len(self._workspace_lookup)} workspaces from {ws_path} (no capacityId column)")
                         return self._workspace_lookup
                 except Exception as e:
                     self.logger.warning(f"Could not load workspace lookup from {ws_path}: {e}")
         
-        self.logger.warning("No workspace lookup file found - workspace names will default to 'Unknown'")
+        self.logger.warning("No workspace lookup file found - workspace data will be extracted from activities")
         return self._workspace_lookup
     
     def _enrich_activities_with_workspace_names(
@@ -1182,30 +1190,40 @@ class StarSchemaBuilder:
         activities: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
-        Enrich activity records with workspace_name from lookup.
+        Enrich activity records with workspace_name and capacityId from lookup.
         
         Args:
             activities: List of activity dictionaries
             
         Returns:
-            List of enriched activity dictionaries with workspace_name populated
+            List of enriched activity dictionaries with workspace_name and capacity_id populated
         """
         workspace_lookup = self._load_workspace_lookup()
         
         if not workspace_lookup:
-            self.logger.warning("No workspace lookup available - workspace_name will be 'Unknown'")
+            self.logger.warning("No workspace lookup available - workspace data will be extracted from activities")
             return activities
         
         enriched_count = 0
+        capacity_enriched = 0
         for activity in activities:
             ws_id = activity.get("workspace_id")
             if ws_id and ws_id in workspace_lookup:
-                activity["workspace_name"] = workspace_lookup[ws_id]
+                ws_data = workspace_lookup[ws_id]
+                # ws_data is now a dict with full workspace info
+                name_col = 'displayName' if 'displayName' in ws_data else 'workspace_name'
+                activity["workspace_name"] = ws_data.get(name_col, activity.get("workspace_name", "Unknown"))
+                
+                # Enrich with capacityId if available
+                if ws_data.get("capacityId"):
+                    activity["capacity_id"] = ws_data["capacityId"]
+                    capacity_enriched += 1
+                    
                 enriched_count += 1
             elif not activity.get("workspace_name"):
                 activity["workspace_name"] = "Unknown"
         
-        self.logger.info(f"Enriched {enriched_count} of {len(activities)} activities with workspace names")
+        self.logger.info(f"Enriched {enriched_count} of {len(activities)} activities with workspace names ({capacity_enriched} with capacityId)")
         return activities
     
     def _load_existing_dimension(self, name: str) -> Optional[pd.DataFrame]:

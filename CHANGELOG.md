@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.12 (December 2025) - Capacity ID Enrichment
+
+### Fixed
+- **Capacity ID Missing from Star Schema** - Fixed `capacity_id` being NULL for all workspaces in `dim_workspace`
+  - Root cause: Pipeline was extracting workspace data from activities (which don't have `capacityId`), not from Power BI Admin API
+  - Fix: Added `_enrich_workspaces_with_capacity()` to pipeline.py that fetches full workspace metadata from Power BI Admin API `/admin/groups` endpoint
+  - Updated `star_schema_builder.py` to load full workspace data (including `capacityId`) from enriched parquet files
+  - Result: `dim_workspace.capacity_id` now populated for all workspaces on dedicated capacity
+
+### Changed
+- `_load_workspace_lookup()` now returns full workspace data dict instead of just name mapping
+- `_enrich_activities_with_workspace_names()` now also enriches `capacity_id` from workspace lookup
+- Workspaces parquet now includes: `id`, `displayName`, `capacityId`, `type`, `state`, `isOnDedicatedCapacity`
+
+### Technical Details
+- Power BI Admin API `/admin/groups` returns `capacityId` for each workspace
+- Activities API returns only `workspace_id` and `workspace_name` (no capacity info)
+- The enrichment happens during pipeline execution, ensuring fresh capacity assignments
+
+---
+
 ## 0.3.11 (December 2025) - Datetime Parsing Warning Fix
 
 ### Fixed

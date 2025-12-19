@@ -515,6 +515,9 @@ class MonitorHubPipeline:
                     "type": activity.get("item_type") or "Unknown"
                 }
 
+        # Enrich workspace data with capacityId from Power BI Admin API
+        enriched_workspaces = self._enrich_workspaces_with_capacity(workspace_lookup)
+
         return {
             "analysis_period": {
                 "start_date": start_date.isoformat(),
@@ -522,10 +525,68 @@ class MonitorHubPipeline:
                 "days": days,
                 "description": f"{days}-day analysis window"
             },
-            "workspaces": list(workspace_lookup.values()),
+            "workspaces": enriched_workspaces,
             "items": list(item_lookup.values()),
             "activities": fabric_activities
         }
+
+    def _enrich_workspaces_with_capacity(self, workspace_lookup: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Enrich workspace data with capacityId from Power BI Admin API.
+        
+        The activity events don't include capacityId, but the Admin API's
+        /admin/groups endpoint returns full workspace metadata including capacity.
+        
+        Args:
+            workspace_lookup: Dict of workspace_id -> basic workspace info from activities
+            
+        Returns:
+            List of workspace dicts enriched with capacityId where available
+        """
+        if not workspace_lookup:
+            return []
+            
+        try:
+            from usf_fabric_monitoring.core.extractor import FabricExtractor
+            from usf_fabric_monitoring.core.auth import FabricAuth
+            
+            # Get full workspace metadata from Admin API
+            auth = FabricAuth()
+            extractor = FabricExtractor(auth)
+            
+            # Fetch all tenant workspaces (includes capacityId)
+            tenant_workspaces = extractor.get_workspaces(tenant_wide=True)
+            
+            # Build lookup by ID
+            api_workspace_lookup = {ws.get("id"): ws for ws in tenant_workspaces}
+            
+            self.logger.info(f"Fetched {len(api_workspace_lookup)} workspaces from Admin API for capacity enrichment")
+            
+            # Enrich our workspace data
+            enriched = []
+            enriched_count = 0
+            for ws_id, ws_data in workspace_lookup.items():
+                api_ws = api_workspace_lookup.get(ws_id, {})
+                enriched_ws = {
+                    "id": ws_id,
+                    "displayName": ws_data.get("displayName") or api_ws.get("name", "Unknown"),
+                    "capacityId": api_ws.get("capacityId"),
+                    "type": api_ws.get("type"),
+                    "state": api_ws.get("state"),
+                    "isOnDedicatedCapacity": api_ws.get("isOnDedicatedCapacity"),
+                }
+                if api_ws.get("capacityId"):
+                    enriched_count += 1
+                enriched.append(enriched_ws)
+            
+            self.logger.info(f"Enriched {enriched_count}/{len(enriched)} workspaces with capacityId")
+            return enriched
+            
+        except Exception as e:
+            self.logger.warning(f"Could not enrich workspaces with capacity data: {e}")
+            self.logger.warning("Falling back to basic workspace data (no capacityId)")
+            # Return basic data without capacityId
+            return list(workspace_lookup.values())
 
     def _is_fabric_activity(self, activity: Dict[str, Any]) -> bool:
         """Check if activity is related to a Fabric item type."""
