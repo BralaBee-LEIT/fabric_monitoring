@@ -537,6 +537,8 @@ class MonitorHubPipeline:
         The activity events don't include capacityId, but the Admin API's
         /admin/groups endpoint returns full workspace metadata including capacity.
         
+        This is OPTIONAL - if it fails, we fall back to basic workspace data.
+        
         Args:
             workspace_lookup: Dict of workspace_id -> basic workspace info from activities
             
@@ -545,6 +547,11 @@ class MonitorHubPipeline:
         """
         if not workspace_lookup:
             return []
+        
+        # Check if capacity enrichment is disabled via environment variable
+        if os.getenv("SKIP_CAPACITY_ENRICHMENT", "0") == "1":
+            self.logger.info("Capacity enrichment skipped (SKIP_CAPACITY_ENRICHMENT=1)")
+            return list(workspace_lookup.values())
             
         try:
             from usf_fabric_monitoring.core.extractor import FabricExtractor
@@ -555,7 +562,12 @@ class MonitorHubPipeline:
             extractor = FabricExtractor(auth)
             
             # Fetch all tenant workspaces (includes capacityId)
+            self.logger.info("Fetching workspace metadata from Admin API for capacity enrichment...")
             tenant_workspaces = extractor.get_workspaces(tenant_wide=True)
+            
+            if not tenant_workspaces:
+                self.logger.warning("No workspaces returned from Admin API - skipping capacity enrichment")
+                return list(workspace_lookup.values())
             
             # Build lookup by ID
             api_workspace_lookup = {ws.get("id"): ws for ws in tenant_workspaces}
@@ -582,6 +594,9 @@ class MonitorHubPipeline:
             self.logger.info(f"Enriched {enriched_count}/{len(enriched)} workspaces with capacityId")
             return enriched
             
+        except ImportError as e:
+            self.logger.warning(f"Could not import required modules for capacity enrichment: {e}")
+            return list(workspace_lookup.values())
         except Exception as e:
             self.logger.warning(f"Could not enrich workspaces with capacity data: {e}")
             self.logger.warning("Falling back to basic workspace data (no capacityId)")

@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.14 (December 2025) - Capacity Enrichment Resilience
+
+### Fixed
+- **Capacity enrichment error handling** - Made `_enrich_workspaces_with_capacity()` more resilient
+  - Added `SKIP_CAPACITY_ENRICHMENT=1` environment variable to disable if causing issues
+  - Better logging when API calls fail
+  - Graceful fallback to basic workspace data if enrichment fails
+  - Separate handling for ImportError vs general exceptions
+
+### Note
+If you see blobfuse/mount errors in Fabric after upgrading to v0.3.12+, try:
+1. Set `SKIP_CAPACITY_ENRICHMENT=1` in notebook before running pipeline
+2. Or ensure the Admin API is accessible from your Fabric workspace
+
+---
+
 ## 0.3.13 (December 2025) - Fabric vs Power BI Platform Classification
 
 ### Added
