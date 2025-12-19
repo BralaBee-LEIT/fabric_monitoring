@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.16 (December 2025) - Clean Release
+
+### Removed
+- **Removed capacity enrichment entirely** - No API calls added to pipeline
+- Removed `_enrich_workspaces_with_capacity()` method
+- Removed `ENABLE_CAPACITY_ENRICHMENT` and `SKIP_CAPACITY_ENRICHMENT` env vars
+
+### Fabric vs Power BI Filtering
+The `platform` and `is_fabric_native` columns in `dim_item` use existing `item_type` data:
+- No additional API calls
+- Based purely on item_type classification
+- Filter in Power BI: `dim_item[platform] = "Fabric"`
+
+---
+
 ## 0.3.15 (December 2025) - No Breaking Changes
 
 ### Fixed
