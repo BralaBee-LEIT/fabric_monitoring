@@ -34,14 +34,29 @@ webapp/
 
 ## Quick Start
 
-### Development (Recommended)
+### Docker (Recommended for Deployment)
+
+```bash
+# From webapp directory
+make docker-build   # Build images
+make docker-up      # Start containers
+```
+
+Application will be available at **http://localhost:8080**
+
+```bash
+make docker-logs    # View logs
+make docker-down    # Stop containers
+```
+
+### Development Mode
 
 ```bash
 # From webapp directory
 make dev
 ```
 
-This starts both backend (port 8001) and frontend (port 5173).
+This starts both backend (port 8001) and frontend (port 5173) with hot-reload.
 
 ### Manual Setup
 
@@ -58,6 +73,25 @@ cd frontend
 npm install
 npm run dev
 ```
+
+## Docker Deployment
+
+### Azure Container Apps
+
+```bash
+# Build and push to Azure Container Registry
+az acr login --name <your-registry>
+docker compose build
+docker tag usf-guide-frontend <your-registry>.azurecr.io/usf-guide-frontend:latest
+docker tag usf-guide-backend <your-registry>.azurecr.io/usf-guide-backend:latest
+docker push <your-registry>.azurecr.io/usf-guide-frontend:latest
+docker push <your-registry>.azurecr.io/usf-guide-backend:latest
+```
+
+### Environment Variables
+
+For production, set these environment variables:
+- `CORS_ORIGINS`: Allowed origins for CORS (default: `*`)
 
 ## Available Scenarios
 
