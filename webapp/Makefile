@@ -60,8 +60,8 @@ dev:
 
 stop:
 	@echo "$(GREEN)Stopping any running servers...$(NC)"
-	@pkill -f "uvicorn app.main" 2>/dev/null || true
-	@pkill -f "vite" 2>/dev/null || true
+	-@pkill -f "uvicorn app.main" 2>/dev/null
+	-@pkill -f "vite" 2>/dev/null
 	@echo "Servers stopped"
 
 test: test-backend test-frontend
