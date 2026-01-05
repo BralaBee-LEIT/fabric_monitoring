@@ -68,11 +68,12 @@ test: test-backend test-frontend
 
 test-backend:
 	@echo "$(GREEN)Running backend tests...$(NC)"
-	cd backend && pytest -v
+	cd backend && PYTHONPATH=. pytest tests/ -v
 
 test-frontend:
 	@echo "$(GREEN)Running frontend tests...$(NC)"
-	cd frontend && npm test
+	@echo "$(YELLOW)Note: No frontend tests configured yet. Run 'npm run build' for type checking.$(NC)"
+	cd frontend && npm run build
 
 build:
 	@echo "$(GREEN)Building frontend for production...$(NC)"
