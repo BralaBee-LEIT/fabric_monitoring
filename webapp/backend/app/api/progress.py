@@ -6,7 +6,7 @@ Track user progress through scenarios (session-based, no persistence).
 
 from typing import Dict
 from fastapi import APIRouter, HTTPException
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models import UserProgress, ProgressUpdate
 
@@ -38,7 +38,7 @@ async def update_progress(scenario_id: str, update: ProgressUpdate):
     - **scenario_id**: The unique identifier of the scenario
     - **update**: Progress update with step_id and completion status
     """
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     
     if scenario_id not in _progress_store:
         _progress_store[scenario_id] = UserProgress(

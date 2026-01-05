@@ -186,6 +186,8 @@ The project includes an interactive web application for learning and utilizing t
   - shadcn/ui component patterns
   - React Query for data fetching
   - Progress tracking with local state
+  - **MarkdownContent component** renders markdown tables, code blocks with syntax highlighting
+  - Code-split bundles for better caching (react-vendor, syntax-highlighter, markdown)
 
 ### Quick Start
 ```bash
@@ -207,6 +209,13 @@ cd webapp/frontend && npm install && npm run dev
 cd webapp/backend && pytest tests/ -v
 cd webapp/frontend && npm run build  # Type checking
 ```
+
+### Content Authoring
+Scenario content supports full Markdown in the `content` field:
+- **Tables**: Use standard markdown table syntax with `|` delimiters
+- **Code blocks**: Use fenced code blocks with language specifier (```python)
+- **Lists**: Both ordered and unordered lists render properly
+- **Inline code**: Use backticks for inline code snippets
 
 ### Content Structure
 Scenario YAML files in `webapp/backend/app/content/scenarios/`:

@@ -17,7 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { CodeBlock } from '@/components/CodeBlock'
+import { MarkdownContent } from '@/components/MarkdownContent'
 import { 
   fetchScenario, 
   fetchProgress, 
@@ -250,27 +250,28 @@ export function ScenarioPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Content */}
-              <div 
-                className="prose prose-gray dark:prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ 
-                  __html: currentStep.content
-                    .replace(/\n\n/g, '</p><p>')
-                    .replace(/^/, '<p>')
-                    .replace(/$/, '</p>')
-                }}
-              />
+              {/* Content - Now with proper markdown rendering */}
+              <MarkdownContent content={currentStep.content} />
 
-              {/* Code Blocks */}
+              {/* Code Blocks - Separate from markdown for explicit code */}
               {currentStep.code_blocks && currentStep.code_blocks.length > 0 && (
                 <div className="space-y-4">
                   {currentStep.code_blocks.map((block, index) => (
-                    <CodeBlock
-                      key={index}
-                      code={block.code}
-                      language={block.language}
-                      filename={block.filename}
-                    />
+                    <div key={index} className="relative group rounded-lg border bg-muted/30 overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/50">
+                        <span className="text-xs font-medium text-muted-foreground uppercase">
+                          {block.language}
+                        </span>
+                        {block.filename && (
+                          <span className="text-xs text-muted-foreground font-mono">
+                            {block.filename}
+                          </span>
+                        )}
+                      </div>
+                      <pre className="p-4 overflow-x-auto text-sm">
+                        <code className="font-mono">{block.code}</code>
+                      </pre>
+                    </div>
                   ))}
                 </div>
               )}
