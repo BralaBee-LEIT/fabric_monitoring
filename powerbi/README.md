@@ -10,7 +10,8 @@ powerbi/
 ├── deploy_powerbi_report.py            # Deployment script using Fabric REST APIs
 ├── report_layout.json                  # Visual layout specification (4 pages)
 ├── measures/
-│   └── fabric_monitoring_measures.dax  # All DAX measures (50+ measures)
+│   ├── fabric_monitoring_measures.dax  # Canonical DAX measures
+│   └── fabric_monitoring_measures_numbered.dax  # Numbered variant ("1 Total Activities", ...)
 ├── themes/
 │   └── usf_fabric_monitoring_theme.json # Custom Power BI theme
 └── deployment/
@@ -90,7 +91,7 @@ In the semantic model, mark `dim_date` as a date table:
 - Table: `dim_date`
 - Date column: `full_date`
 
-This enables time intelligence functions like `DATESMTD`, `PREVIOUSMONTH`, etc.
+This is recommended for consistent time-intelligence behavior.
 
 ## DAX Measures Overview
 
@@ -100,8 +101,8 @@ The `measures/fabric_monitoring_measures.dax` file contains 50+ measures organiz
 |---------|----------|-------------|
 | Core KPIs | 8 | Total Activities, Failed, Success Rate, Active Users/Workspaces |
 | Duration | 7 | Total/Avg/Max Duration, Long Running Activities |
-| Time Comparison | 8 | Today, Yesterday, Last 7/28 Days, DoD/WoW Change |
-| Time Intelligence | 5 | MTD, YTD, MoM comparisons |
+| Time Comparison | 7 | Today, Yesterday, Last 7/28 Days, DoD/WoW Change |
+| Time Intelligence | 4 | MTD, YTD, MoM comparisons |
 | Environment | 6 | PRD/UAT/TEST/DEV Activities and Failure Rates |
 | Activity Type | 6 | Pipeline, Notebook, Dataflow, etc. |
 | User Analysis | 3 | Activities per User, User Rank |
@@ -183,6 +184,11 @@ View → Themes → Browse for themes → Select `usf_fabric_monitoring_theme.js
 - Verify relationships are created correctly
 - Check that `dim_date` is marked as a date table
 - Ensure the filter context is correct
+
+### Section 3 (Time Comparison) semantics
+- Measures are computed “as-of” the latest selected date: `AsOfDate = MIN(TODAY(), MAX(dim_date[full_date]))`.
+- This makes visuals slicer-aware while still preventing future-dated windows.
+- “Last 7 Days” and “Last 28 Days” are exact day windows (7 and 28 days, inclusive of AsOfDate).
 
 ### Wrong activity counts
 - Use `SUM(record_count)` not `COUNT(activity_id)`

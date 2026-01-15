@@ -1,50 +1,48 @@
 // =============================================================================
-// USF FABRIC MONITORING - DAX MEASURES
+// USF FABRIC MONITORING - NUMBERED DAX MEASURES
 // =============================================================================
-// Version: 0.3.8
+// Version: 0.3.8+
 // Author: Sanmi Ibitoye
-// Email: Sanmi.Ibitoye@leit.ltd
 // Last Updated: 2026-01-15
 //
-// USAGE: Copy each measure into your Power BI semantic model
-// IMPORTANT: Use SUM(fact_activity[record_count]) NOT COUNT(activity_id)
-//            because 99% of activity_ids are NULL (audit log entries)
+// PURPOSE
+// - This file is a numbered variant of the canonical measures file.
+// - It aligns with a Power BI model where measures are prefixed with numbers
+//   (e.g., "1 Total Activities", "2 Failed Activities", ...).
+//
+// IMPORTANT
+// - Counting MUST use SUM(fact_activity[record_count]) NOT COUNT(activity_id)
+//   because most audit-log activities have NULL activity_id.
+// - This file does NOT modify or replace the original measures file.
+//
 // =============================================================================
 
 
 // =============================================================================
-// SECTION 1: CORE KPI MEASURES
+// SECTION 1: CORE KPI MEASURES (1-8)
 // =============================================================================
 
-// Total Activities
-// Primary measure for counting all activities
-Total Activities = 
+1 Total Activities =
 SUM(fact_activity[record_count])
 
 
-// Failed Activities
-// Count of activities where is_failed = 1
-Failed Activities = 
+2 Failed Activities =
 CALCULATE(
     SUM(fact_activity[record_count]),
     fact_activity[is_failed] = 1
 )
 
 
-// Successful Activities
-// Count of activities where is_failed = 0
-Successful Activities = 
+3 Successful Activities =
 CALCULATE(
     SUM(fact_activity[record_count]),
     fact_activity[is_failed] = 0
 )
 
 
-// Success Rate (%)
-// Percentage of successful activities
-Success Rate = 
-VAR TotalAct = [Total Activities]
-VAR FailedAct = [Failed Activities]
+4 Success Rate =
+VAR TotalAct = [1 Total Activities]
+VAR FailedAct = [2 Failed Activities]
 RETURN
 IF(
     TotalAct > 0,
@@ -53,41 +51,31 @@ IF(
 )
 
 
-// Failure Rate (%)
-// Percentage of failed activities
-Failure Rate = 
+5 Failure Rate =
 IF(
-    [Total Activities] > 0,
-    DIVIDE([Failed Activities], [Total Activities]) * 100,
+    [1 Total Activities] > 0,
+    DIVIDE([2 Failed Activities], [1 Total Activities]) * 100,
     BLANK()
 )
 
 
-// Active Users
-// Distinct count of users with activities
-Active Users = 
+6 Active Users =
 DISTINCTCOUNT(fact_activity[user_sk])
 
 
-// Active Workspaces
-// Distinct count of workspaces with activities
-Active Workspaces = 
+7 Active Workspaces =
 DISTINCTCOUNT(fact_activity[workspace_sk])
 
 
-// Active Items
-// Distinct count of items (notebooks, pipelines, etc.)
-Active Items = 
+8 Active Items =
 DISTINCTCOUNT(fact_activity[item_sk])
 
 
 // =============================================================================
-// SECTION 2: DURATION MEASURES
+// SECTION 2: DURATION MEASURES (9-15)
 // =============================================================================
 
-// Total Duration (Hours)
-// Sum of all activity durations in hours
-Total Duration Hours = 
+9 Total Duration Hours =
 DIVIDE(
     SUM(fact_activity[duration_seconds]),
     3600,
@@ -95,9 +83,7 @@ DIVIDE(
 )
 
 
-// Total Duration (Minutes)
-// Sum of all activity durations in minutes
-Total Duration Minutes = 
+10 Total Duration Minutes =
 DIVIDE(
     SUM(fact_activity[duration_seconds]),
     60,
@@ -105,9 +91,7 @@ DIVIDE(
 )
 
 
-// Average Duration (Minutes)
-// Average activity duration in minutes
-Avg Duration Minutes = 
+11 Avg Duration Minutes =
 DIVIDE(
     AVERAGE(fact_activity[duration_seconds]),
     60,
@@ -115,15 +99,11 @@ DIVIDE(
 )
 
 
-// Average Duration (Seconds)
-// Average activity duration in seconds
-Avg Duration Seconds = 
+12 Avg Duration Seconds =
 AVERAGE(fact_activity[duration_seconds])
 
 
-// Max Duration (Hours)
-// Longest activity duration in hours
-Max Duration Hours = 
+13 Max Duration Hours =
 DIVIDE(
     MAX(fact_activity[duration_seconds]),
     3600,
@@ -131,46 +111,43 @@ DIVIDE(
 )
 
 
-// Long Running Activities
-// Count of activities flagged as long-running (>1 hour)
-Long Running Activities = 
+14 Long Running Activities =
 CALCULATE(
     SUM(fact_activity[record_count]),
     fact_activity[is_long_running] = 1
 )
 
 
-// Long Running Rate (%)
-// Percentage of activities that are long-running
-Long Running Rate = 
+15 Long Running Rate =
 IF(
-    [Total Activities] > 0,
-    DIVIDE([Long Running Activities], [Total Activities]) * 100,
+    [1 Total Activities] > 0,
+    DIVIDE([14 Long Running Activities], [1 Total Activities]) * 100,
     BLANK()
 )
 
 
 // =============================================================================
-// SECTION 3: TIME COMPARISON MEASURES
+// SECTION 3: TIME COMPARISON MEASURES (16-22)
+// Notes:
+// - These measures are “as-of” style KPIs.
+// - AsOfDate anchors to the latest selected date, but never beyond TODAY().
 // =============================================================================
 
-// Activities Today
-Activities Today = 
+16 Activities Today =
 VAR AsOfDate = MIN(TODAY(), MAX(dim_date[full_date]))
 RETURN
 IF(
     ISBLANK(AsOfDate),
     BLANK(),
     CALCULATE(
-        [Total Activities],
+        [1 Total Activities],
         REMOVEFILTERS(dim_date),
         dim_date[full_date] = AsOfDate
     )
 )
 
 
-// Activities Yesterday
-Activities Yesterday = 
+17 Activities Yesterday =
 VAR AsOfDate = MIN(TODAY(), MAX(dim_date[full_date]))
 VAR Yesterday = AsOfDate - 1
 RETURN
@@ -178,45 +155,42 @@ IF(
     ISBLANK(AsOfDate),
     BLANK(),
     CALCULATE(
-        [Total Activities],
+        [1 Total Activities],
         REMOVEFILTERS(dim_date),
         dim_date[full_date] = Yesterday
     )
 )
 
 
-// Activities Last 7 Days
-Activities Last 7 Days = 
+18 Activities Last 7 Days =
 VAR AsOfDate = MIN(TODAY(), MAX(dim_date[full_date]))
 RETURN
 IF(
     ISBLANK(AsOfDate),
     BLANK(),
     CALCULATE(
-        [Total Activities],
+        [1 Total Activities],
         REMOVEFILTERS(dim_date),
         DATESINPERIOD(dim_date[full_date], AsOfDate, -7, DAY)
     )
 )
 
 
-// Activities Last 28 Days
-Activities Last 28 Days = 
+19 Activities Last 28 Days =
 VAR AsOfDate = MIN(TODAY(), MAX(dim_date[full_date]))
 RETURN
 IF(
     ISBLANK(AsOfDate),
     BLANK(),
     CALCULATE(
-        [Total Activities],
+        [1 Total Activities],
         REMOVEFILTERS(dim_date),
         DATESINPERIOD(dim_date[full_date], AsOfDate, -28, DAY)
     )
 )
 
 
-// Activities Previous 7 Days (week before last 7)
-Activities Previous 7 Days = 
+20 Activities Previous 7 Days =
 VAR AsOfDate = MIN(TODAY(), MAX(dim_date[full_date]))
 VAR PreviousWindowEnd = AsOfDate - 7
 RETURN
@@ -224,29 +198,27 @@ IF(
     ISBLANK(AsOfDate),
     BLANK(),
     CALCULATE(
-        [Total Activities],
+        [1 Total Activities],
         REMOVEFILTERS(dim_date),
         DATESINPERIOD(dim_date[full_date], PreviousWindowEnd, -7, DAY)
     )
 )
 
 
-// Day-over-Day Change (%)
-DoD Change % = 
-VAR Today = [Activities Today]
-VAR Yesterday = [Activities Yesterday]
+21 DoD Change % =
+VAR TodayAct = [16 Activities Today]
+VAR YesterdayAct = [17 Activities Yesterday]
 RETURN
 IF(
-    Yesterday > 0,
-    DIVIDE(Today - Yesterday, Yesterday) * 100,
+    YesterdayAct > 0,
+    DIVIDE(TodayAct - YesterdayAct, YesterdayAct) * 100,
     BLANK()
 )
 
 
-// Week-over-Week Change (%)
-WoW Change % = 
-VAR ThisWeek = [Activities Last 7 Days]
-VAR LastWeek = [Activities Previous 7 Days]
+22 WoW Change % =
+VAR ThisWeek = [18 Activities Last 7 Days]
+VAR LastWeek = [20 Activities Previous 7 Days]
 RETURN
 IF(
     LastWeek > 0,
@@ -256,12 +228,11 @@ IF(
 
 
 // =============================================================================
-// SECTION 4: TIME INTELLIGENCE
-// Recommended: mark dim_date as a date table on dim_date[full_date]
+// SECTION 4: TIME INTELLIGENCE (23-26)
+// Recommended: mark dim_date as a Date table on dim_date[full_date]
 // =============================================================================
 
-// Activities MTD (Month to Date)
-Activities MTD = 
+23 Activities MTD =
 VAR AsOfDate = MIN(TODAY(), MAX(dim_date[full_date]))
 VAR MonthStart = DATE(YEAR(AsOfDate), MONTH(AsOfDate), 1)
 RETURN
@@ -269,14 +240,13 @@ IF(
     ISBLANK(AsOfDate),
     BLANK(),
     CALCULATE(
-        [Total Activities],
+        [1 Total Activities],
         DATESBETWEEN(dim_date[full_date], MonthStart, AsOfDate)
     )
 )
 
 
-// Activities Previous Month
-Activities Previous Month = 
+24 Activities Previous Month =
 VAR AsOfDate = MIN(TODAY(), MAX(dim_date[full_date]))
 VAR PrevMonthStart = EOMONTH(AsOfDate, -2) + 1
 VAR PrevMonthEnd = EOMONTH(AsOfDate, -1)
@@ -285,14 +255,13 @@ IF(
     ISBLANK(AsOfDate),
     BLANK(),
     CALCULATE(
-        [Total Activities],
+        [1 Total Activities],
         DATESBETWEEN(dim_date[full_date], PrevMonthStart, PrevMonthEnd)
     )
 )
 
 
-// Activities YTD (Year to Date)
-Activities YTD = 
+25 Activities YTD =
 VAR AsOfDate = MIN(TODAY(), MAX(dim_date[full_date]))
 VAR YearStart = DATE(YEAR(AsOfDate), 1, 1)
 RETURN
@@ -300,26 +269,25 @@ IF(
     ISBLANK(AsOfDate),
     BLANK(),
     CALCULATE(
-        [Total Activities],
+        [1 Total Activities],
         DATESBETWEEN(dim_date[full_date], YearStart, AsOfDate)
     )
 )
 
 
-// Month-over-Month Change (%)
-MoM Change % = 
+26 MoM Change % =
 VAR AsOfDate = MIN(TODAY(), MAX(dim_date[full_date]))
 RETURN
 IF(
     ISBLANK(AsOfDate),
     BLANK(),
-    VAR CurrentMonthMTD = [Activities MTD]
+    VAR CurrentMonthMTD = [23 Activities MTD]
     VAR PrevMonthStart = EOMONTH(AsOfDate, -2) + 1
     VAR PrevMonthEndCandidate = PrevMonthStart + DAY(AsOfDate) - 1
     VAR PrevMonthEnd = MIN(PrevMonthEndCandidate, EOMONTH(AsOfDate, -1))
     VAR PreviousMonthMTD =
         CALCULATE(
-            [Total Activities],
+            [1 Total Activities],
             DATESBETWEEN(dim_date[full_date], PrevMonthStart, PrevMonthEnd)
         )
     RETURN
@@ -332,138 +300,122 @@ IF(
 
 
 // =============================================================================
-// SECTION 5: ENVIRONMENT BREAKDOWN MEASURES
+// SECTION 5: ENVIRONMENT BREAKDOWN (27-32)
 // =============================================================================
 
-// Production Activities
-Production Activities = 
+27 Production Activities =
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     dim_workspace[environment] = "PRD"
 )
 
 
-// UAT Activities
-UAT Activities = 
+28 UAT Activities =
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     dim_workspace[environment] = "UAT"
 )
 
 
-// Test Activities
-Test Activities = 
+29 Test Activities =
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     dim_workspace[environment] = "TEST"
 )
 
 
-// Development Activities
-Development Activities = 
+30 Development Activities =
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     dim_workspace[environment] = "DEV"
 )
 
 
-// Production Failure Rate (%)
-Production Failure Rate = 
+31 Production Failure Rate =
 CALCULATE(
-    [Failure Rate],
+    [5 Failure Rate],
     dim_workspace[environment] = "PRD"
 )
 
 
-// Non-Production Activities
-Non-Production Activities = 
+32 Non-Production Activities =
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     dim_workspace[environment] <> "PRD"
 )
 
 
 // =============================================================================
-// SECTION 6: ACTIVITY TYPE BREAKDOWN MEASURES
+// SECTION 6: ACTIVITY TYPE BREAKDOWN (33-38)
 // =============================================================================
 
-// Pipeline Activities
-Pipeline Activities = 
+33 Pipeline Activities =
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     dim_activity_type[activity_category] = "Pipeline"
 )
 
 
-// Notebook Activities
-Notebook Activities = 
+34 Notebook Activities =
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     dim_activity_type[activity_category] = "Notebook"
 )
 
 
-// Dataflow Activities
-Dataflow Activities = 
+35 Dataflow Activities =
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     dim_activity_type[activity_category] = "Dataflow"
 )
 
 
-// Lakehouse Activities
-Lakehouse Activities = 
+36 Lakehouse Activities =
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     dim_activity_type[activity_category] = "Lakehouse"
 )
 
 
-// Semantic Model Activities
-Semantic Model Activities = 
+37 Semantic Model Activities =
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     dim_activity_type[activity_category] = "SemanticModel"
 )
 
 
-// Report Activities
-Report Activities = 
+38 Report Activities =
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     dim_activity_type[activity_category] = "Report"
 )
 
 
 // =============================================================================
-// SECTION 7: USER ANALYSIS MEASURES
+// SECTION 7: USER ANALYSIS (39-41)
 // =============================================================================
 
-// Activities per User (Average)
-Activities per User = 
+39 Activities per User =
 DIVIDE(
-    [Total Activities],
-    [Active Users],
+    [1 Total Activities],
+    [6 Active Users],
     0
 )
 
 
-// Top User Activities
-// Use in a table visual with dim_user[user_principal_name]
-Top User Activities = 
+40 Top User Activities =
 VAR CurrentUser = SELECTEDVALUE(dim_user[user_principal_name])
 RETURN
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     dim_user[user_principal_name] = CurrentUser
 )
 
 
-// User Rank
-User Rank = 
+41 User Rank =
 RANKX(
     ALL(dim_user[user_principal_name]),
-    [Total Activities],
+    [1 Total Activities],
     ,
     DESC,
     Dense
@@ -471,33 +423,30 @@ RANKX(
 
 
 // =============================================================================
-// SECTION 8: WORKSPACE ANALYSIS MEASURES
+// SECTION 8: WORKSPACE ANALYSIS (42-44)
 // =============================================================================
 
-// Activities per Workspace (Average)
-Activities per Workspace = 
+42 Activities per Workspace =
 DIVIDE(
-    [Total Activities],
-    [Active Workspaces],
+    [1 Total Activities],
+    [7 Active Workspaces],
     0
 )
 
 
-// Workspace Rank
-Workspace Rank = 
+43 Workspace Rank =
 RANKX(
     ALL(dim_workspace[workspace_name]),
-    [Total Activities],
+    [1 Total Activities],
     ,
     DESC,
     Dense
 )
 
 
-// Workspace Success Rate
-Workspace Success Rate = 
-VAR WsTotal = [Total Activities]
-VAR WsFailed = [Failed Activities]
+44 Workspace Success Rate =
+VAR WsTotal = [1 Total Activities]
+VAR WsFailed = [2 Failed Activities]
 RETURN
 IF(
     WsTotal > 0,
@@ -507,31 +456,28 @@ IF(
 
 
 // =============================================================================
-// SECTION 9: HOURLY ANALYSIS MEASURES
+// SECTION 9: HOURLY ANALYSIS (45-47)
 // =============================================================================
 
-// Business Hours Activities
-Business Hours Activities = 
+45 Business Hours Activities =
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     dim_time[is_business_hours] = TRUE()
 )
 
 
-// Off-Hours Activities
-Off-Hours Activities = 
+46 Off-Hours Activities =
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     dim_time[is_business_hours] = FALSE()
 )
 
 
-// Peak Hour
-Peak Hour = 
-VAR HourlyTable = 
+47 Peak Hour =
+VAR HourlyTable =
     ADDCOLUMNS(
         SUMMARIZE(fact_activity, dim_time[hour_24]),
-        "HourCount", [Total Activities]
+        "HourCount", [1 Total Activities]
     )
 VAR MaxCount = MAXX(HourlyTable, [HourCount])
 RETURN
@@ -542,39 +488,33 @@ MAXX(
 
 
 // =============================================================================
-// SECTION 10: CONDITIONAL FORMATTING MEASURES
+// SECTION 10: CONDITIONAL FORMATTING (48-51)
 // =============================================================================
 
-// Success Rate Color
-// Use for conditional formatting: Green > 99%, Yellow > 95%, Red < 95%
-Success Rate Color = 
-VAR Rate = [Success Rate]
+48 Success Rate Color =
+VAR Rate = [4 Success Rate]
 RETURN
 SWITCH(
     TRUE(),
     Rate >= 99, "#107C10",  // Green
     Rate >= 95, "#FFB900",  // Yellow
-    "#E81123"              // Red
+    "#E81123"               // Red
 )
 
 
-// Failure Count Color
-// Use for conditional formatting on failure counts
-Failure Count Color = 
-VAR FailCount = [Failed Activities]
+49 Failure Count Color =
+VAR FailCount = [2 Failed Activities]
 RETURN
 SWITCH(
     TRUE(),
-    FailCount = 0, "#107C10",   // Green - no failures
-    FailCount <= 10, "#FFB900", // Yellow - few failures
-    "#E81123"                   // Red - many failures
+    FailCount = 0, "#107C10",   // Green
+    FailCount <= 10, "#FFB900", // Yellow
+    "#E81123"                   // Red
 )
 
 
-// Trend Indicator
-// Returns ▲ or ▼ based on DoD change
-Trend Indicator = 
-VAR Change = [DoD Change %]
+50 Trend Indicator =
+VAR Change = [21 DoD Change %]
 RETURN
 SWITCH(
     TRUE(),
@@ -584,49 +524,95 @@ SWITCH(
 )
 
 
-// Trend Color
-// Green for positive, Red for negative
-Trend Color = 
-VAR Change = [DoD Change %]
+51 Trend Color =
+VAR Change = [21 DoD Change %]
 RETURN
 IF(Change >= 0, "#107C10", "#E81123")
 
 
 // =============================================================================
-// SECTION 11: SPARKLINE MEASURES (for card visuals with trends)
+// SECTION 11: SPARKLINE HELPER (52)
 // =============================================================================
 
-// Daily Activity Sparkline Data
-// Use with LINE visual in a card for mini trend
-Daily Activity Trend = 
+52 Daily Activity Trend =
 CALCULATE(
-    [Total Activities],
+    [1 Total Activities],
     ALLEXCEPT(dim_date, dim_date[full_date])
 )
 
 
 // =============================================================================
-// SECTION 12: CALCULATED COLUMNS (add to tables, not measures)
+// SECTION 12: OPTIONAL “OPS” MEASURES (53+)
+// These help build a more “actionable” monitoring dashboard.
 // =============================================================================
 
-// NOTE: These are calculated columns - add them to the appropriate tables
-// in the semantic model, not as measures
+53 Impacted Workspaces (Failures) =
+CALCULATE(
+    DISTINCTCOUNT(fact_activity[workspace_sk]),
+    fact_activity[is_failed] = 1
+)
 
-// -- For dim_date table --
-// Is Weekend = IF(WEEKDAY([full_date], 2) > 5, TRUE(), FALSE())
-// Is Today = IF([full_date] = TODAY(), TRUE(), FALSE())
-// Days Ago = DATEDIFF([full_date], TODAY(), DAY)
 
-// -- For dim_workspace table --
-// Is Production = IF([environment] = "PRD", TRUE(), FALSE())
+54 Failure Days (Distinct) =
+CALCULATE(
+    DISTINCTCOUNT(dim_date[full_date]),
+    fact_activity[is_failed] = 1
+)
 
-// -- For fact_activity table --
-// Duration Category = 
-//     SWITCH(
-//         TRUE(),
-//         [duration_seconds] <= 60, "< 1 min",
-//         [duration_seconds] <= 300, "1-5 min",
-//         [duration_seconds] <= 900, "5-15 min",
-//         [duration_seconds] <= 3600, "15-60 min",
-//         "> 1 hour"
-//     )
+
+55 Failure Density (Failures/Day) =
+DIVIDE(
+    [2 Failed Activities],
+    [54 Failure Days (Distinct)],
+    0
+)
+
+
+56 Failed Duration Hours =
+CALCULATE(
+    [9 Total Duration Hours],
+    fact_activity[is_failed] = 1
+)
+
+
+57 Failed Avg Duration Minutes =
+CALCULATE(
+    [11 Avg Duration Minutes],
+    fact_activity[is_failed] = 1
+)
+
+
+58 P95 Duration Minutes =
+DIVIDE(
+    PERCENTILEX.INC(
+        fact_activity,
+        fact_activity[duration_seconds],
+        0.95
+    ),
+    60,
+    0
+)
+
+
+59 Scheduled Activities (Proxy) =
+// Proxy for "scheduled tasks": focuses on common job-history-backed categories.
+// Adjust the category list if your dim_activity_type differs.
+CALCULATE(
+    [1 Total Activities],
+    dim_activity_type[activity_category] IN {"Pipeline", "Notebook", "Dataflow"}
+)
+
+
+60 Scheduled Failed Activities (Proxy) =
+CALCULATE(
+    [2 Failed Activities],
+    dim_activity_type[activity_category] IN {"Pipeline", "Notebook", "Dataflow"}
+)
+
+
+61 Scheduled Failure Rate (Proxy) =
+IF(
+    [59 Scheduled Activities (Proxy)] > 0,
+    DIVIDE([60 Scheduled Failed Activities (Proxy)], [59 Scheduled Activities (Proxy)]) * 100,
+    BLANK()
+)
