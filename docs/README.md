@@ -9,7 +9,6 @@ docs/
 ├── 01_Getting_Started/        # Initial setup and configuration guides
 ├── 02_User_Guides/            # Day-to-day operational guides
 ├── 03_Technical_Reference/    # Technical specifications and API details
-├── 04_API_Guides/             # API integration documentation
 ├── 05_Architecture_Design/    # System architecture and design docs
 ├── 06_Historical_Reports/     # Past assessment and review reports
 ├── 07_Executive_Materials/    # Executive presentations and summaries
