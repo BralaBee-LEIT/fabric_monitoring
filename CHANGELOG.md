@@ -2,6 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.18 (January 2026) - Enhanced Lineage Explorer & Documentation Overhaul
+
+### Added
+- **Interactive Lineage Explorer** (`src/usf_fabric_monitoring/lineage_explorer/`):
+  - FastAPI backend serving graph data from CSV lineage exports
+  - D3.js v7 force-directed graph visualization with 3 layout modes (force/radial/tree)
+  - Animated particle flow along data connections
+  - Interactive minimap for navigation
+  - Advanced search with autocomplete dropdown
+  - Multi-filter sidebar (workspaces, item types, source types)
+  - Detail panel with tabs (overview/connections/metadata)
+  - Keyboard shortcuts (F=fit, +/-=zoom, /=search, Esc=deselect)
+  - Deep space glassmorphism design with CSS custom properties
+  - Responsive design with mobile breakpoints
+- **Launcher Script**: `run_lineage_explorer.py` for quick server startup
+- **Makefile Target**: `make lineage-explorer` to run the visualization
+
+### Changed
+- **Documentation Reorganization**: Restructured `/docs` into 8 numbered folders:
+  - `01_Getting_Started/` - Setup and installation guides
+  - `02_User_Guides/` - Workspace enforcement, tenant monitoring, deployment
+  - `03_Technical_Reference/` - API comparisons, review status
+  - `04_API_Guides/` - Placeholder for API documentation
+  - `05_Architecture_Design/` - Lineage explorer specs, visualization architecture
+  - `06_Historical_Reports/` - Compliance reports, archived reviews
+  - `07_Executive_Materials/` - Stakeholder presentations
+  - `08_Reference_Materials/` - Images, external references
+- **docs/README.md**: New navigation index with links to all documentation sections
+
+### Fixed
+- **Loading Overlay ID Mismatch**: Fixed `id="loading"` → `id="loading-overlay"` in lineage explorer HTML
+
+### Removed
+- **webapp/** directory: Removed legacy React/FastAPI tutorial webapp (functionality moved to lineage_explorer)
+
+---
+
+## 0.3.17 (January 2026) - Lineage & Visualization Deep Dive
+
+### Added
+- **OneLake Shortcut Extraction**: `extract_lineage.py` now scans Lakehouses and KQL Databases for Shortcuts to generic external sources (ADLS Gen2, S3) and internal OneLake paths.
+- **Deep Dive Visualization Dashboard**: Completely rewritten `visualize_lineage.py` using Plotly and NetworkX.
+  - **Topology Network**: Force-directed graph to visualize workspace clustering around data sources.
+  - **Sankey Diagram**: Flow analysis from Workspace to External Source.
+  - **Inverted Treemap**: Reverse lineage lookup (Source -> Consumer).
+- **Makefile Targets**: Added `extract-lineage` and `visualize-lineage` commands.
+
+### Changed
+- **Unified Lineage Schema**: Consolidated Mirrored Database and Shortcut outputs into a single standard CSV format.
+
+---
+
 ## 0.3.16 (December 2025) - Clean Release
 
 ### Removed

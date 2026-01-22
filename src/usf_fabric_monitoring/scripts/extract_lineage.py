@@ -136,9 +136,10 @@ class LineageExtractor:
             self.logger.error(f"Error fetching Lakehouses for {workspace_id}: {str(e)}")
             
         return items
-    def get_lakehouses(self, workspace_id):
-        """Fetch Lakehouses in a workspace."""
-        url = f"{self.api_base}/workspaces/{workspace_id}/items?type=Lakehouse"
+
+    def get_kql_databases(self, workspace_id):
+        """Fetch KQL Databases in a workspace."""
+        url = f"{self.api_base}/workspaces/{workspace_id}/items?type=KQLDatabase"
         items = []
         
         try:
@@ -147,7 +148,7 @@ class LineageExtractor:
                 if not response or response.status_code != 200:
                     code = response.status_code if response else "Unknown"
                     if code != 403: 
-                        self.logger.warning(f"Failed to fetch Lakehouses for {workspace_id}: {code}")
+                        self.logger.warning(f"Failed to fetch KQL Databases for {workspace_id}: {code}")
                     break
                     
                 data = response.json()
@@ -155,7 +156,7 @@ class LineageExtractor:
                 url = data.get("continuationUri")
                 
         except Exception as e:
-            self.logger.error(f"Error fetching Lakehouses for {workspace_id}: {str(e)}")
+            self.logger.error(f"Error fetching KQL Databases for {workspace_id}: {str(e)}")
             
         return items
 
@@ -292,6 +293,46 @@ class LineageExtractor:
 
             except Exception as e:
                 self.logger.error(f"Error processing Shortcuts in {ws_name}: {e}")
+
+            # --- 3. KQL Database Shortcuts ---
+            try:
+                kql_dbs = self.get_kql_databases(ws_id)
+                if kql_dbs:
+                     self.logger.info(f"  Found {len(kql_dbs)} KQL Databases, checking shortcuts...")
+
+                for db in kql_dbs:
+                    db_id = db["id"]
+                    db_name = db.get("displayName", "Unknown")
+                    
+                    shortcuts = self.get_shortcuts(ws_id, db_id)
+                    
+                    for shortcut in shortcuts:
+                        try:
+                            sc_name = shortcut.get("name", "Unknown")
+                            sc_path = shortcut.get("path", "Unknown")
+                            target = shortcut.get("target", {})
+                            
+                            self.logger.info(f"    Found Shortcut: {sc_name} in {db_name}")
+                            
+                            lineage_data.append({
+                                "Workspace Name": ws_name,
+                                "Workspace ID": ws_id,
+                                "Item Name": db_name,
+                                "Item ID": db_id,
+                                "Item Type": "KQLDatabase Shortcut",
+                                "Shortcut Name": sc_name,
+                                "Shortcut Path": sc_path,
+                                "Source Type": target.get("type", "Unknown"),
+                                "Source Connection": target.get("path") or target.get("location") or str(target),
+                                "Source Database": None,
+                                "Connection ID": None,
+                                "Full Definition": json.dumps(shortcut)
+                            })
+                        except Exception as e:
+                             self.logger.warning(f"Error parsing shortcut {sc_name} in {db_name}: {e}")
+
+            except Exception as e:
+                self.logger.error(f"Error processing KQL Shortcuts in {ws_name}: {e}")
         
         if lineage_data:
             df = pd.DataFrame(lineage_data)
@@ -306,7 +347,8 @@ class LineageExtractor:
             print("="*40)
             print(f"Total Items Found: {len(df)}")
             print(f"Mirrored Databases: {len(df[df['Item Type'] == 'MirroredDatabase'])}")
-            print(f"Shortcuts: {len(df[df['Item Type'] == 'Lakehouse Shortcut'])}")
+            print(f"Lakehouse Shortcuts: {len(df[df['Item Type'] == 'Lakehouse Shortcut'])}")
+            print(f"KQL Shortcuts: {len(df[df['Item Type'] == 'KQLDatabase Shortcut'])}")
             if "Source Type" in df.columns:
                 print("\nTop Source Types:")
                 print(df["Source Type"].value_counts().head().to_string())

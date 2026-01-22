@@ -37,7 +37,7 @@ help:
 	@echo "  $(GREEN)enforce-access$(NC) - Ensure required groups keep workspace access"
 	@echo "  $(GREEN)monitor-hub$(NC) - Run Monitor Hub activity analysis"
 	@echo "  $(GREEN)extract-lineage$(NC) - Extract Lineage (Mirrored Databases & Shortcuts)"
-	@echo "  $(GREEN)visualize-lineage$(NC) - Generate HTML Lineage Report"
+	@echo "  $(GREEN)lineage-explorer$(NC) - Interactive D3.js Lineage Visualization (http://127.0.0.1:8000)"
 	@echo "  $(GREEN)compute-analysis$(NC) - Run Compute Analysis (alias for monitor-hub)"
 	@echo "  $(GREEN)generate-reports$(NC) - Generate reports from existing extracted data"
 	@echo "  $(GREEN)audit-sp-access$(NC)  - Audit workspaces where Service Principal is missing"
@@ -289,11 +289,24 @@ extract-lineage:
 		echo "$(YELLOW)Create it first with: make create$(NC)"; \
 	fi
 
-# Lineage Visualization
-visualize-lineage:
-	@echo "$(GREEN)Generating Lineage Visualization Report$(NC)"
+# Lineage Explorer (Interactive D3.js Visualization)
+lineage-explorer:
+	@echo "$(GREEN)Starting Fabric Lineage Explorer (http://127.0.0.1:8000)$(NC)"
 	@if conda env list | grep -q "^$(ENV_NAME) "; then \
-		conda run --no-capture-output -n $(ENV_NAME) python src/usf_fabric_monitoring/scripts/visualize_lineage.py; \
+		echo "$(YELLOW)Press Ctrl+C to stop the server$(NC)"; \
+		conda run --no-capture-output -n $(ENV_NAME) python run_lineage_explorer.py; \
+	else \
+		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
+		echo "$(YELLOW)Create it first with: make create$(NC)"; \
+	fi
+
+# Legacy: Lineage Visualization (Deprecated - use lineage-explorer instead)
+visualize-lineage:
+	@echo "$(YELLOW)Note: visualize-lineage is deprecated. Use 'make lineage-explorer' for interactive visualization$(NC)"
+	@echo "$(GREEN)Starting Fabric Lineage Explorer instead...$(NC)"
+	@if conda env list | grep -q "^$(ENV_NAME) "; then \
+		echo "$(YELLOW)Press Ctrl+C to stop the server$(NC)"; \
+		conda run --no-capture-output -n $(ENV_NAME) python run_lineage_explorer.py; \
 	else \
 		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
 		echo "$(YELLOW)Create it first with: make create$(NC)"; \
