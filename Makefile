@@ -37,6 +37,7 @@ help:
 	@echo "  $(GREEN)enforce-access$(NC) - Ensure required groups keep workspace access"
 	@echo "  $(GREEN)monitor-hub$(NC) - Run Monitor Hub activity analysis"
 	@echo "  $(GREEN)extract-lineage$(NC) - Extract Lineage (Mirrored Databases & Shortcuts)"
+	@echo "  $(GREEN)visualize-lineage$(NC) - Generate HTML Lineage Report"
 	@echo "  $(GREEN)compute-analysis$(NC) - Run Compute Analysis (alias for monitor-hub)"
 	@echo "  $(GREEN)generate-reports$(NC) - Generate reports from existing extracted data"
 	@echo "  $(GREEN)audit-sp-access$(NC)  - Audit workspaces where Service Principal is missing"
@@ -283,6 +284,16 @@ extract-lineage:
 	@if conda env list | grep -q "^$(ENV_NAME) "; then \
 		OUTPUT_ARG=$${OUTPUT_DIR:+--output-dir $$OUTPUT_DIR}; \
 		conda run --no-capture-output -n $(ENV_NAME) python src/usf_fabric_monitoring/scripts/extract_lineage.py $$OUTPUT_ARG; \
+	else \
+		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
+		echo "$(YELLOW)Create it first with: make create$(NC)"; \
+	fi
+
+# Lineage Visualization
+visualize-lineage:
+	@echo "$(GREEN)Generating Lineage Visualization Report$(NC)"
+	@if conda env list | grep -q "^$(ENV_NAME) "; then \
+		conda run --no-capture-output -n $(ENV_NAME) python src/usf_fabric_monitoring/scripts/visualize_lineage.py; \
 	else \
 		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
 		echo "$(YELLOW)Create it first with: make create$(NC)"; \
