@@ -26,7 +26,7 @@ from typing import Optional
 from contextlib import asynccontextmanager
 
 from .graph_builder import (
-    build_graph_from_csv, 
+    build_graph_from_csv, build_graph_from_json, build_graph,
     compute_graph_stats, export_graph_to_json
 )
 from .models import LineageGraph, GraphStats
@@ -97,8 +97,8 @@ class GraphCache:
 _cache = GraphCache(ttl_seconds=300)
 
 
-def find_lineage_csv() -> Path:
-    """Find the most recent lineage CSV file."""
+def find_lineage_file() -> Path:
+    """Find the most recent lineage JSON or CSV file (prefers JSON)."""
     search_paths = [EXPORT_DIR]
     
     cwd_export = Path("exports/lineage")
@@ -109,15 +109,20 @@ def find_lineage_csv() -> Path:
         if not search_path.exists():
             continue
         
+        # Prefer JSON files (native format)
+        json_files = glob.glob(str(search_path / "lineage_*.json"))
+        if json_files:
+            return Path(max(json_files, key=os.path.getmtime))
+        
+        # Fallback to CSV (legacy format)
         csv_files = glob.glob(str(search_path / "mirrored_lineage_*.csv"))
         if not csv_files:
             csv_files = glob.glob(str(search_path / "*.csv"))
         
         if csv_files:
-            # Use largest file (real data is larger than test files)
             return Path(max(csv_files, key=os.path.getsize))
     
-    raise FileNotFoundError(f"No lineage CSV found in: {search_paths}")
+    raise FileNotFoundError(f"No lineage JSON/CSV found in: {search_paths}")
 
 
 def load_graph(force_refresh: bool = False) -> tuple[LineageGraph, GraphStats]:
@@ -129,14 +134,14 @@ def load_graph(force_refresh: bool = False) -> tuple[LineageGraph, GraphStats]:
     
     start_time = time.time()
     
-    csv_path = find_lineage_csv()
-    logger.info(f"Loading: {csv_path} ({os.path.getsize(csv_path)} bytes)")
+    file_path = find_lineage_file()
+    logger.info(f"Loading: {file_path} ({os.path.getsize(file_path)} bytes)")
     
-    graph = build_graph_from_csv(csv_path)
+    graph = build_graph(file_path)  # Auto-detects JSON vs CSV
     stats = compute_graph_stats(graph)
     
     load_time_ms = (time.time() - start_time) * 1000
-    _cache.set(graph, stats, str(csv_path), load_time_ms)
+    _cache.set(graph, stats, str(file_path), load_time_ms)
     
     return graph, stats
 
@@ -279,21 +284,21 @@ _override_csv_path: Optional[str] = None
 
 
 def set_csv_path(path: str):
-    """Set the CSV path to use (for programmatic use)."""
+    """Set the data file path to use (for programmatic use). Accepts JSON or CSV."""
     global _override_csv_path
     _override_csv_path = path
 
 
-# Monkey patch find_lineage_csv to check override
-_original_find_lineage_csv = find_lineage_csv
+# Monkey patch find_lineage_file to check override
+_original_find_lineage_file = find_lineage_file
 
-def _find_lineage_csv_with_override() -> Path:
+def _find_lineage_file_with_override() -> Path:
     if _override_csv_path:
         return Path(_override_csv_path)
-    return _original_find_lineage_csv()
+    return _original_find_lineage_file()
 
 # Replace the function
-find_lineage_csv = _find_lineage_csv_with_override
+find_lineage_file = _find_lineage_file_with_override
 
 
 def run_server(csv_path: Optional[str] = None, host: str = "127.0.0.1", port: int = 8000):
@@ -301,7 +306,7 @@ def run_server(csv_path: Optional[str] = None, host: str = "127.0.0.1", port: in
     Run the Lineage Explorer server.
     
     Args:
-        csv_path: Optional path to lineage CSV file. Auto-detects if not provided.
+        csv_path: Optional path to lineage JSON or CSV file. Auto-detects if not provided.
         host: Server host (default: 127.0.0.1)
         port: Server port (default: 8000)
     """

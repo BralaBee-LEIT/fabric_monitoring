@@ -8,7 +8,6 @@ import base64
 import logging
 import argparse
 import requests
-import pandas as pd
 from pathlib import Path
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
@@ -335,27 +334,49 @@ class LineageExtractor:
                 self.logger.error(f"Error processing KQL Shortcuts in {ws_name}: {e}")
         
         if lineage_data:
-            df = pd.DataFrame(lineage_data)
-            filename = f"mirrored_lineage_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            # Output as JSON (preserves structure, no CSV flattening)
+            output_data = {
+                "extracted_at": datetime.now().isoformat(),
+                "total_items": len(lineage_data),
+                "lineage": lineage_data
+            }
+            
+            filename = f"lineage_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             filepath = output_path / filename
-            df.to_csv(filepath, index=False)
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(output_data, f, indent=2, ensure_ascii=False)
+            
             self.logger.info(f"✅ Lineage exported to {filepath}")
             
             # Print Summary
+            mirrored_count = sum(1 for item in lineage_data if item.get('Item Type') == 'MirroredDatabase')
+            lakehouse_count = sum(1 for item in lineage_data if item.get('Item Type') == 'Lakehouse Shortcut')
+            kql_count = sum(1 for item in lineage_data if item.get('Item Type') == 'KQLDatabase Shortcut')
+            
+            # Count source types
+            source_types = {}
+            for item in lineage_data:
+                st = item.get('Source Type', 'Unknown')
+                source_types[st] = source_types.get(st, 0) + 1
+            
             print("\n" + "="*40)
             print("🔗 LINEAGE SUMMARY")
             print("="*40)
-            print(f"Total Items Found: {len(df)}")
-            print(f"Mirrored Databases: {len(df[df['Item Type'] == 'MirroredDatabase'])}")
-            print(f"Lakehouse Shortcuts: {len(df[df['Item Type'] == 'Lakehouse Shortcut'])}")
-            print(f"KQL Shortcuts: {len(df[df['Item Type'] == 'KQLDatabase Shortcut'])}")
-            if "Source Type" in df.columns:
-                print("\nTop Source Types:")
-                print(df["Source Type"].value_counts().head().to_string())
+            print(f"Total Items Found: {len(lineage_data)}")
+            print(f"Mirrored Databases: {mirrored_count}")
+            print(f"Lakehouse Shortcuts: {lakehouse_count}")
+            print(f"KQL Shortcuts: {kql_count}")
+            print("\nTop Source Types:")
+            for st, count in sorted(source_types.items(), key=lambda x: -x[1])[:5]:
+                print(f"  {st}: {count}")
             print("\n" + "="*40 + "\n")
+            
+            return filepath  # Return path for chaining
             
         else:
             self.logger.warning("No lineage data found.")
+            return None
 
 def main():
     parser = argparse.ArgumentParser(description="Extract Lineage for Mirrored Databases and Shortcuts")

@@ -1,9 +1,10 @@
 """
 Graph Builder - Simplified
 --------------------------
-Clean CSV → Graph conversion (~200 LOC vs 425 LOC original).
+JSON/CSV → Graph conversion (~250 LOC).
 
 Design: Single-pass where possible, minimal string manipulation.
+Supports both JSON (native) and CSV (legacy) input formats.
 """
 
 import pandas as pd
@@ -12,7 +13,7 @@ import json
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any, Set, Union
 from collections import defaultdict
 
 from .models import (
@@ -138,6 +139,101 @@ def build_graph_from_csv(csv_path: Path) -> LineageGraph:
     )
     logger.info(f"Built: {len(workspaces)} workspaces, {len(items)} items, {len(sources)} sources, {len(edges)} edges")
     return graph
+
+
+def build_graph_from_json(json_path: Path) -> LineageGraph:
+    """Build lineage graph from JSON file (native format from extract_lineage.py)."""
+    logger.info(f"Loading JSON: {json_path}")
+    
+    with open(json_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    lineage_items = data.get('lineage', [])
+    logger.info(f"Processing {len(lineage_items)} items")
+    
+    workspaces: Dict[str, Workspace] = {}
+    items: Dict[str, FabricItem] = {}
+    sources: Dict[str, ExternalSource] = {}
+    edges: List[LineageEdge] = []
+    edge_ids: Set[str] = set()
+    known_items: Set[str] = set()
+    
+    # Pass 1: Collect workspaces and items
+    for row in lineage_items:
+        ws_id = str(row.get('Workspace ID', ''))
+        item_id = str(row.get('Item ID', ''))
+        
+        if ws_id and ws_id not in ('', 'nan', 'None'):
+            if ws_id not in workspaces:
+                workspaces[ws_id] = Workspace(id=ws_id, name=str(row.get('Workspace Name', 'Unknown')))
+        
+        if item_id and item_id not in ('', 'nan', 'None'):
+            known_items.add(item_id)
+            if item_id not in items:
+                items[item_id] = FabricItem(
+                    id=item_id, name=str(row.get('Item Name', 'Unknown')),
+                    item_type=str(row.get('Item Type', 'Unknown')), workspace_id=ws_id
+                )
+    
+    # Pass 2: Build edges
+    for row in lineage_items:
+        target_id = str(row.get('Item ID', ''))
+        if not target_id or target_id in ('', 'nan', 'None'):
+            continue
+        
+        # Source Connection is already a dict in JSON (no parsing needed)
+        conn = row.get('Source Connection')
+        if isinstance(conn, str):
+            conn = _parse_json(conn)
+        if not conn:
+            continue
+        
+        source_type = conn.get('type', str(row.get('Source Type', 'Unknown')))
+        
+        # OneLake internal reference?
+        if source_type == 'OneLake':
+            upstream_id = conn.get('oneLake', {}).get('itemId')
+            if upstream_id and upstream_id in known_items:
+                edge_id = f"{upstream_id}->{target_id}"
+                if edge_id not in edge_ids:
+                    edge_ids.add(edge_id)
+                    edges.append(LineageEdge(id=edge_id, source_id=upstream_id, target_id=target_id,
+                                            edge_type="internal", metadata={"is_internal": True}))
+                continue
+        
+        # External source
+        src_id = f"src_{_source_id(source_type, conn)}"
+        if src_id not in sources:
+            sources[src_id] = ExternalSource(
+                id=src_id, source_type=source_type,
+                display_name=_display_name(source_type, conn), connection_details=conn
+            )
+        
+        edge_id = f"{src_id}->{target_id}"
+        if edge_id not in edge_ids:
+            edge_ids.add(edge_id)
+            shortcut = str(row.get('Shortcut Name', ''))
+            edges.append(LineageEdge(
+                id=edge_id, source_id=src_id, target_id=target_id, edge_type="external",
+                metadata={"shortcut": shortcut if shortcut and shortcut not in ('', 'nan', 'None') else None}
+            ))
+    
+    graph = LineageGraph(
+        workspaces=list(workspaces.values()), items=list(items.values()),
+        external_sources=list(sources.values()), edges=edges,
+        generated_at=datetime.now(), source_file=str(json_path)
+    )
+    logger.info(f"Built: {len(workspaces)} workspaces, {len(items)} items, {len(sources)} sources, {len(edges)} edges")
+    return graph
+
+
+def build_graph(file_path: Union[str, Path]) -> LineageGraph:
+    """Build lineage graph from JSON or CSV file (auto-detects format)."""
+    path = Path(file_path)
+    if path.suffix.lower() == '.json':
+        return build_graph_from_json(path)
+    else:
+        return build_graph_from_csv(path)
 
 
 def compute_graph_stats(graph: LineageGraph) -> GraphStats:
