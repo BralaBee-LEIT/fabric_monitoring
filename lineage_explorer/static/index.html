@@ -628,6 +628,28 @@
         .toast.success { background: var(--accent-green); }
         .toast.error { background: var(--accent-red); }
         
+        /* Selection Tools */
+        #selection-tools {
+            align-items: center;
+            gap: 8px;
+        }
+        
+        #selection-count {
+            padding: 4px 8px;
+            background: var(--accent-blue);
+            color: white;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+        }
+        
+        #btn-select-children,
+        #btn-select-descendants,
+        #btn-clear-selection {
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
         /* Graph Nodes & Links */
         .node { cursor: pointer; }
         .node text {
@@ -1081,6 +1103,18 @@
                             </svg>
                         </button>
                     </div>
+                    <div class="toolbar-group" id="selection-tools" style="display: none;">
+                        <span id="selection-count" style="font-size: 11px; color: var(--text-muted); margin-right: 8px;">0 selected</span>
+                        <button class="btn btn-sm" id="btn-select-children" title="Select Direct Children (1 Level)">
+                            Children
+                        </button>
+                        <button class="btn btn-sm" id="btn-select-descendants" title="Select All Descendants">
+                            Descendants
+                        </button>
+                        <button class="btn btn-sm" id="btn-clear-selection" title="Clear Selection">
+                            Clear
+                        </button>
+                    </div>
                 </div>
                 
                 <!-- Zoom Controls -->
@@ -1226,7 +1260,7 @@
         graph: null,
         filteredGraph: null,
         filters: { search: '', workspaces: new Set(), itemTypes: new Set(), sourceTypes: new Set() },
-        selectedNode: null,
+        selectedNodes: new Set(),  // Changed to Set for multi-select
         sidebarOpen: true,
         particlesEnabled: true,
         labelsVisible: true,
@@ -1495,17 +1529,20 @@
                 .join('g')
                 .attr('class', d => `node ${state.labelsVisible ? '' : 'labels-hidden'}`)
                 .call(this.drag(state.simulation))
-                .on('click', (event, d) => { event.stopPropagation(); this.selectNode(d); })
+                .on('click', (event, d) => { 
+                    event.stopPropagation(); 
+                    this.selectNode(d, event.ctrlKey || event.metaKey);  // Multi-select with Ctrl/Cmd
+                })
                 .on('mouseenter', (event, d) => { 
-                    // Only show hover highlight if no node is selected
-                    if (!state.selectedNode) {
+                    // Only show hover highlight if no nodes selected
+                    if (state.selectedNodes.size === 0) {
                         this.highlightConnections(d); 
                     }
                     Tooltip.show(event, d); 
                 })
                 .on('mouseleave', () => { 
-                    // Only clear highlight if no node is selected
-                    if (!state.selectedNode) {
+                    // Only clear highlight if no nodes selected
+                    if (state.selectedNodes.size === 0) {
                         this.clearHighlight(); 
                     }
                     Tooltip.hide(); 
@@ -1617,30 +1654,97 @@
                 });
         },
         
-        selectNode(node) {
-            state.selectedNode = node;
-            state.svg.selectAll('.node').classed('selected', d => d.id === node.id);
-            // Persist the highlight for selected node
-            this.highlightConnections(node);
-            DetailPanel.show(node);
+        selectNode(node, multiSelect = false) {
+            if (multiSelect) {
+                // Toggle selection with Ctrl+Click
+                if (state.selectedNodes.has(node.id)) {
+                    state.selectedNodes.delete(node.id);
+                } else {
+                    state.selectedNodes.add(node.id);
+                }
+            } else {
+                // Single select - clear others
+                state.selectedNodes.clear();
+                state.selectedNodes.add(node.id);
+            }
+            
+            state.svg.selectAll('.node').classed('selected', d => state.selectedNodes.has(d.id));
+            this.highlightConnections();
+            this.updateSelectionUI();
+            
+            // Show detail panel for first selected node
+            if (state.selectedNodes.size === 1) {
+                DetailPanel.show(node);
+            } else if (state.selectedNodes.size > 1) {
+                DetailPanel.hide();
+            }
         },
         
         deselectNode() {
-            state.selectedNode = null;
+            state.selectedNodes.clear();
             state.svg.selectAll('.node').classed('selected', false);
-            // Clear highlight when deselecting
             this.clearHighlight();
+            this.updateSelectionUI();
             DetailPanel.hide();
         },
         
-        highlightConnections(node) {
+        updateSelectionUI() {
+            const count = state.selectedNodes.size;
+            const selectionTools = document.getElementById('selection-tools');
+            const selectionCount = document.getElementById('selection-count');
+            
+            if (selectionTools && selectionCount) {
+                if (count > 0) {
+                    selectionTools.style.display = 'flex';
+                    selectionCount.textContent = `${count} selected`;
+                } else {
+                    selectionTools.style.display = 'none';
+                }
+            }
+        },
+        
+        selectChildren(levels = 1) {
+            if (!state.filteredGraph || state.selectedNodes.size === 0) return;
+            
+            const newSelections = new Set(state.selectedNodes);
+            let currentLevel = new Set(state.selectedNodes);
+            
+            for (let i = 0; i < levels; i++) {
+                const nextLevel = new Set();
+                state.filteredGraph.links.forEach(link => {
+                    const sId = typeof link.source === 'object' ? link.source.id : link.source;
+                    const tId = typeof link.target === 'object' ? link.target.id : link.target;
+                    if (currentLevel.has(sId)) {
+                        nextLevel.add(tId);
+                        newSelections.add(tId);
+                    }
+                });
+                currentLevel = nextLevel;
+                if (currentLevel.size === 0) break;
+            }
+            
+            state.selectedNodes = newSelections;
+            state.svg.selectAll('.node').classed('selected', d => state.selectedNodes.has(d.id));
+            this.highlightConnections();
+            this.updateSelectionUI();
+            DetailPanel.hide();
+        },
+        
+        highlightConnections(hoverNode = null) {
             if (!state.filteredGraph) return;
-            const connectedIds = new Set([node.id]);
+            
+            // Use hover node if provided, otherwise use selected nodes
+            const nodesToHighlight = hoverNode ? [hoverNode.id] : Array.from(state.selectedNodes);
+            if (nodesToHighlight.length === 0) return;
+            
+            const connectedIds = new Set(nodesToHighlight);
             state.filteredGraph.links.forEach(link => {
                 const sId = typeof link.source === 'object' ? link.source.id : link.source;
                 const tId = typeof link.target === 'object' ? link.target.id : link.target;
-                if (sId === node.id) connectedIds.add(tId);
-                if (tId === node.id) connectedIds.add(sId);
+                nodesToHighlight.forEach(nodeId => {
+                    if (sId === nodeId) connectedIds.add(tId);
+                    if (tId === nodeId) connectedIds.add(sId);
+                });
             });
             
             state.svg.selectAll('.node')
@@ -1651,20 +1755,20 @@
                 .classed('highlighted', d => {
                     const sId = typeof d.source === 'object' ? d.source.id : d.source;
                     const tId = typeof d.target === 'object' ? d.target.id : d.target;
-                    return sId === node.id || tId === node.id;
+                    return nodesToHighlight.some(nodeId => sId === nodeId || tId === nodeId);
                 })
                 .classed('dimmed', d => {
                     const sId = typeof d.source === 'object' ? d.source.id : d.source;
                     const tId = typeof d.target === 'object' ? d.target.id : d.target;
-                    return sId !== node.id && tId !== node.id;
+                    return !nodesToHighlight.some(nodeId => sId === nodeId || tId === nodeId);
                 })
                 .classed('inward', d => {
                     const tId = typeof d.target === 'object' ? d.target.id : d.target;
-                    return tId === node.id;  // Green for arrows coming IN
+                    return nodesToHighlight.includes(tId);  // Green for arrows coming IN
                 })
                 .classed('outward', d => {
                     const sId = typeof d.source === 'object' ? d.source.id : d.source;
-                    return sId === node.id;  // Blue for arrows going OUT
+                    return nodesToHighlight.includes(sId);  // Blue for arrows going OUT
                 });
         },
         
@@ -2240,6 +2344,11 @@
             document.getElementById('btn-zoom-in')?.addEventListener('click', () => Graph.zoomIn());
             document.getElementById('btn-zoom-out')?.addEventListener('click', () => Graph.zoomOut());
             document.getElementById('btn-fit-view')?.addEventListener('click', () => Graph.fitToView());
+            
+            // Multi-selection controls
+            document.getElementById('btn-select-children')?.addEventListener('click', () => Graph.selectChildren(1));
+            document.getElementById('btn-select-descendants')?.addEventListener('click', () => Graph.selectChildren(10));  // 10 levels
+            document.getElementById('btn-clear-selection')?.addEventListener('click', () => Graph.deselectNode());
             
             const searchInput = document.getElementById('filter-search');
             searchInput?.addEventListener('input', debounce((e) => {
