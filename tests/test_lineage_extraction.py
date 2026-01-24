@@ -10,13 +10,16 @@ import base64
 from unittest.mock import MagicMock, patch, PropertyMock
 from pathlib import Path
 
+# Import module directly since scripts/ is in sys.path via conftest.py
+import extract_lineage
+
 
 class TestLineageExtractorInit:
     """Tests for LineageExtractor initialization."""
     
-    @patch('scripts.extract_lineage.load_dotenv')
-    @patch('scripts.extract_lineage.create_authenticator_from_env')
-    @patch('scripts.extract_lineage.setup_logging')
+    @patch('extract_lineage.load_dotenv')
+    @patch('extract_lineage.create_authenticator_from_env')
+    @patch('extract_lineage.setup_logging')
     def test_init_success(self, mock_logging, mock_auth_factory, mock_dotenv):
         """Successful initialization with valid credentials."""
         mock_auth = MagicMock()
@@ -25,19 +28,14 @@ class TestLineageExtractorInit:
         mock_auth_factory.return_value = mock_auth
         mock_logging.return_value = MagicMock()
         
-        # Import after mocking
-        import sys
-        sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-        from extract_lineage import LineageExtractor
-        
-        extractor = LineageExtractor()
+        extractor = extract_lineage.LineageExtractor()
         
         assert extractor.token == "test_token"
         assert "Bearer test_token" in extractor.headers["Authorization"]
     
-    @patch('scripts.extract_lineage.load_dotenv')
-    @patch('scripts.extract_lineage.create_authenticator_from_env')
-    @patch('scripts.extract_lineage.setup_logging')
+    @patch('extract_lineage.load_dotenv')
+    @patch('extract_lineage.create_authenticator_from_env')
+    @patch('extract_lineage.setup_logging')
     def test_init_auth_failure(self, mock_logging, mock_auth_factory, mock_dotenv):
         """Should raise exception when authentication fails."""
         mock_auth = MagicMock()
@@ -45,12 +43,8 @@ class TestLineageExtractorInit:
         mock_auth_factory.return_value = mock_auth
         mock_logging.return_value = MagicMock()
         
-        import sys
-        sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-        from extract_lineage import LineageExtractor
-        
         with pytest.raises(Exception, match="Authentication failed"):
-            LineageExtractor()
+            extract_lineage.LineageExtractor()
 
 
 class TestDecodePayload:
@@ -59,18 +53,14 @@ class TestDecodePayload:
     @pytest.fixture
     def extractor(self):
         """Create extractor with mocked init."""
-        with patch('scripts.extract_lineage.load_dotenv'):
-            with patch('scripts.extract_lineage.create_authenticator_from_env') as mock_auth:
-                with patch('scripts.extract_lineage.setup_logging') as mock_log:
+        with patch('extract_lineage.load_dotenv'):
+            with patch('extract_lineage.create_authenticator_from_env') as mock_auth:
+                with patch('extract_lineage.setup_logging') as mock_log:
                     mock_auth.return_value.validate_credentials.return_value = True
                     mock_auth.return_value.get_fabric_token.return_value = "token"
                     mock_log.return_value = MagicMock()
                     
-                    import sys
-                    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-                    from extract_lineage import LineageExtractor
-                    
-                    return LineageExtractor()
+                    return extract_lineage.LineageExtractor()
     
     def test_decode_valid_payload(self, extractor):
         """Valid Base64 JSON should be decoded correctly."""
@@ -100,20 +90,16 @@ class TestMakeRequestWithRetry:
     @pytest.fixture
     def extractor(self):
         """Create extractor with mocked init."""
-        with patch('scripts.extract_lineage.load_dotenv'):
-            with patch('scripts.extract_lineage.create_authenticator_from_env') as mock_auth:
-                with patch('scripts.extract_lineage.setup_logging') as mock_log:
+        with patch('extract_lineage.load_dotenv'):
+            with patch('extract_lineage.create_authenticator_from_env') as mock_auth:
+                with patch('extract_lineage.setup_logging') as mock_log:
                     mock_auth.return_value.validate_credentials.return_value = True
                     mock_auth.return_value.get_fabric_token.return_value = "token"
                     mock_log.return_value = MagicMock()
                     
-                    import sys
-                    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-                    from extract_lineage import LineageExtractor
-                    
-                    return LineageExtractor()
+                    return extract_lineage.LineageExtractor()
     
-    @patch('scripts.extract_lineage.requests.request')
+    @patch('extract_lineage.requests.request')
     def test_successful_request(self, mock_request, extractor):
         """Successful request should return response."""
         mock_response = MagicMock()
@@ -125,8 +111,8 @@ class TestMakeRequestWithRetry:
         assert result == mock_response
         assert mock_request.call_count == 1
     
-    @patch('scripts.extract_lineage.time.sleep')
-    @patch('scripts.extract_lineage.requests.request')
+    @patch('time.sleep')
+    @patch('extract_lineage.requests.request')
     def test_retry_on_429(self, mock_request, mock_sleep, extractor):
         """429 response should trigger retry with backoff."""
         mock_429 = MagicMock()
