@@ -211,35 +211,67 @@ make generate-reports
 
 ## 📂 Project Structure
 
+This project follows **industry-standard Python packaging** ([src layout](https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/)) for maintainability and clean imports.
+
 ```text
 usf_fabric_monitoring/
-├── config/                 # Configuration files (targets, suppressions, inference rules)
-├── docs/                   # Documentation (FABRIC_DEPLOYMENT.md, etc.)
-├── exports/                # Generated reports and data
-│   └── star_schema/        # Star schema output (dimensions, facts, DDL)
-├── notebooks/              # Jupyter Notebooks for interactive analysis
-│   ├── Monitor_Hub_Analysis.ipynb
-│   ├── Workspace_Access_Enforcement.ipynb
-│   └── Fabric_Star_Schema_Builder.ipynb
-├── scripts/                # Development utilities and convenience wrappers
-├── src/                    # Source code (industry-standard src layout)
-│   └── usf_fabric_monitoring/
-│       ├── core/           # Core logic (pipeline, star_schema_builder, admin_scanner)
-│       └── scripts/        # CLI entry points (installable via pip)
-│           ├── monitor_hub_pipeline.py     → usf-monitor-hub
-│           ├── extract_lineage.py          → usf-extract-lineage
-│           ├── enforce_workspace_access.py → usf-enforce-access
-│           ├── build_star_schema.py        → usf-star-schema
-│           └── validate_config.py          → usf-validate-config
-├── lineage_explorer/       # Interactive D3.js lineage visualization with Neo4j
-│   ├── static/             # HTML/CSS/JS for web interface
-│   ├── graph_database/     # Neo4j client, data loader, queries
-│   └── server.py           # FastAPI backend
-├── tests/                  # Test suite
-├── Makefile                # Command automation
-├── environment.yml         # Conda environment definition
-└── pyproject.toml          # Python package metadata + pip dependencies
+├── src/                        # 🐍 CORE PYTHON PACKAGE (src layout)
+│   └── usf_fabric_monitoring/  #    Installable package via `pip install -e .`
+│       ├── core/               #    Business logic (auth, pipeline, extractors)
+│       └── scripts/            #    CLI entry points → usf-* commands
+│
+├── lineage_explorer/           # 🌐 STANDALONE WEB APP (FastAPI + D3.js)
+│                               #    Self-contained; reads data from exports/
+│
+├── notebooks/                  # 📓 JUPYTER NOTEBOOKS (interactive analysis)
+│                               #    Uses src/ package via sys.path or pip install
+│
+├── tests/                      # 🧪 TEST SUITE (pytest)
+├── config/                     # ⚙️  JSON configs (inference rules, suppressions)
+├── exports/                    # 📊 OUTPUT DATA (reports, parquet, lineage)
+├── docs/                       # 📚 DOCUMENTATION (architecture, deployment)
+├── scripts/                    # 🔧 DEV UTILITIES (convenience wrappers)
+├── Makefile                    # 🏗️  Command automation (`make help`)
+├── pyproject.toml              # 📦 Package metadata & entry points
+└── environment.yml             # 🐍 Conda environment definition
 ```
+
+### 📖 Directory Explanations for Contributors
+
+| Directory | Purpose | When to Modify |
+|-----------|---------|----------------|
+| **`src/usf_fabric_monitoring/core/`** | Core business logic (pipeline, auth, extractors, star schema builder). All reusable functionality lives here. | Adding new features, fixing bugs in extraction/analysis |
+| **`src/usf_fabric_monitoring/scripts/`** | CLI entry points that call `core/` modules. These become `usf-*` commands after `pip install`. | Adding new CLI commands |
+| **`lineage_explorer/`** | **Standalone FastAPI + D3.js web app** for interactive lineage visualization. Kept separate because it's a complete web application with its own frontend/backend—not a Python library. | Modifying visualization, adding Neo4j queries |
+| **`notebooks/`** | Interactive Jupyter notebooks for exploration and demos. Great for learning the codebase. | Adding tutorials, interactive analysis |
+| **`tests/`** | pytest test suite. Mirrors structure of `src/`. | Adding tests for new features |
+| **`config/`** | JSON configuration files for inference rules, workspace suppressions, and access targets. | Modifying business rules without code changes |
+| **`exports/`** | Generated output (DO NOT commit). Contains reports, parquet files, lineage data. | N/A (gitignored) |
+| **`scripts/`** | Legacy convenience wrappers. Use `src/.../scripts/` for new CLI tools. | Rarely—prefer `src/` for new CLIs |
+
+### 🤔 Why This Structure?
+
+**Q: Why is `lineage_explorer/` not inside `src/`?**  
+A: It's a **standalone web application** with HTML/CSS/JS frontend, Neo4j integration, and FastAPI backend—not a library to import. It consumes data from `exports/lineage/` and runs as an independent service.
+
+**Q: Why `src/usf_fabric_monitoring/scripts/` instead of top-level `scripts/`?**  
+A: Scripts inside the package are **installable via pip** and become `usf-*` commands. Top-level `scripts/` was the legacy location.
+
+**Q: How do notebooks import the package?**  
+A: They add `src/` to `sys.path` at the top of each notebook. After `pip install -e .`, imports work directly.
+
+### 🎯 Entry Points (CLI Commands)
+
+After `pip install -e .` or `make install`, these commands become available:
+
+| Command | Source Module | Description |
+|---------|---------------|-------------|
+| `usf-monitor-hub` | `scripts.monitor_hub_pipeline` | Run Monitor Hub analysis |
+| `usf-extract-lineage` | `scripts.extract_lineage` | Extract lineage data |
+| `usf-enforce-access` | `scripts.enforce_workspace_access` | Assess/enforce workspace access |
+| `usf-star-schema` | `scripts.build_star_schema` | Build dimensional schema |
+| `usf-validate-config` | `scripts.validate_config` | Validate JSON configs |
+
 
 ## ⚠️ Recent Updates (v0.3.0 - Star Schema Analytics Release)
 
