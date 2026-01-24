@@ -34,6 +34,12 @@ A comprehensive Python-based solution for monitoring, analyzing, and governing M
 - **Mirrored Database Analysis**: Scans workspaces for Mirrored Databases (Snowflake, Azure SQL, Cosmos DB).
 - **OneLake Shortcut Analysis**: Extracts OneLake shortcuts from **Lakehouses** and **KQL Databases**.
 - **Unified Inventory**: Outputs a consolidated CSV schema (`Workspace`, `Item`, `Type`, `Source Connection`) for all external dependencies.
+- **Hybrid Extraction Modes** ⭐ NEW:
+  - `auto` (default): Automatically selects mode based on workspace count
+  - `iterative`: O(N) individual API calls per workspace (granular, slower)
+  - `scanner`: O(1) batch Admin Scanner API calls (faster for large tenants)
+  - Configurable threshold (default: 50 workspaces) for auto mode switching
+  - Automatic fallback to iterative on scanner errors
 - **Lineage Explorer**: Interactive D3.js force-directed graph visualization with Neo4j-powered analysis:
   - **Unified Light Theme**: Professional light color scheme optimized for readability
   - **Query Explorer**: 40+ pre-built Neo4j queries across 10 categories (Overview, Dependencies, Security, etc.)
@@ -153,7 +159,25 @@ Extract lineage details for Mirrored Databases:
 ```bash
 make extract-lineage
 ```
-*Output: `exports/lineage/mirrored_lineage_YYYYMMDD_HHMMSS.csv`*
+
+**Extraction Modes** (for large tenants):
+```bash
+# Auto mode (default) - selects based on workspace count
+python scripts/extract_lineage.py --mode auto
+
+# Scanner mode - batch API, ~18 seconds for 178 workspaces
+python scripts/extract_lineage.py --mode scanner
+
+# Iterative mode - granular API calls (legacy)
+python scripts/extract_lineage.py --mode iterative
+
+# Custom threshold for auto mode
+python scripts/extract_lineage.py --mode auto --threshold 100
+```
+
+> **Note**: Scanner mode requires Fabric Administrator role or Service Principal with `Tenant.Read.All` permission.
+
+*Output: `exports/lineage/lineage_YYYYMMDD_HHMMSS.json`*
 
 ### Interactive Analysis (Notebooks)
 
@@ -197,10 +221,13 @@ usf_fabric_monitoring/
 │   ├── Monitor_Hub_Analysis.ipynb
 │   ├── Workspace_Access_Enforcement.ipynb
 │   └── Fabric_Star_Schema_Builder.ipynb
+├── scripts/                # Entry point CLI scripts
+│   ├── extract_lineage.py  # Lineage extraction (with Admin Scanner support)
+│   ├── monitor_hub_pipeline.py
+│   └── enforce_workspace_access.py
 ├── src/                    # Source code
 │   └── usf_fabric_monitoring/
-│       ├── core/           # Core logic (pipeline, star_schema_builder, etc.)
-│       └── scripts/        # Entry point scripts
+│       └── core/           # Core logic (pipeline, star_schema_builder, admin_scanner, etc.)
 ├── lineage_explorer/       # Interactive D3.js lineage visualization with Neo4j
 │   ├── static/             # HTML/CSS/JS for web interface
 │   ├── graph_database/     # Neo4j client, data loader, queries
