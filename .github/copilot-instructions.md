@@ -1,6 +1,6 @@
 # GitHub Copilot Instructions for USF Fabric Monitoring
 
-**Version**: 0.3.21 (January 2026) | **Library-first** Microsoft Fabric monitoring/governance toolkit.
+**Version**: 0.3.23 (January 2026) | **Library-first** Microsoft Fabric monitoring/governance toolkit.
 Core logic in `src/usf_fabric_monitoring/`; scripts/notebooks are thin wrappers.
 
 ## Project Structure (src-layout)
@@ -157,6 +157,43 @@ make test-smoke                # Quick import tests
 - **Config**: Business rules in `config/*.json` (inference_rules, workspace_access_targets, etc.)
 - **Tests**: Unit tests in `tests/` (offline-safe); integration in `tools/dev_tests/`
 - **Notebooks**: `notebooks/Fabric_Star_Schema_Builder.ipynb` - always reload modules with `importlib.reload()`
+
+### Type Safety (v0.3.23+)
+Use `core/type_safety.py` for defensive data handling:
+```python
+from usf_fabric_monitoring.core.type_safety import (
+    safe_int64,            # Handle NaN/None → Int64
+    coerce_surrogate_keys, # Enforce Int64 for *_sk columns
+    safe_datetime,         # Parse datetime with format fallbacks
+    safe_workspace_lookup, # Fallback chain: ID → Name → default
+)
+
+# Example: Fix Direct Lake Float64 issue
+df = coerce_surrogate_keys(df)  # All *_sk columns → Int64
+```
+
+### Environment Detection (v0.3.23+)
+Use `core/env_detection.py` for cross-platform handling:
+```python
+from usf_fabric_monitoring.core.env_detection import (
+    detect_environment,     # Returns LOCAL/FABRIC_NOTEBOOK/FABRIC_PIPELINE
+    is_fabric_environment,  # Boolean check
+    get_default_output_path, # Environment-aware path
+)
+
+if is_fabric_environment():
+    output_dir = get_default_output_path()  # /lakehouse/default/Files/exports
+else:
+    output_dir = get_default_output_path()  # ./exports
+```
+
+### Config Validation (v0.3.23+)
+All config files have JSON schemas in `config/schemas/`:
+```bash
+# Validate all configs
+make validate-config
+# OR: python -c "from usf_fabric_monitoring.core.config_validation import validate_all_configs, print_validation_report; _, _, e = validate_all_configs(); print_validation_report(e)"
+```
 
 ## Auth/Secrets
 - Set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` in `.env`

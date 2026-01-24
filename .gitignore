@@ -47,3 +47,22 @@ webapp/backend/app/__pycache__/
 webapp/backend/app/**/__pycache__/
 webapp/backend/tests/__pycache__/
 webapp/backend/.pytest_cache/
+
+# Neo4j graph database
+lineage_explorer/graph_database/data/
+lineage_explorer/graph_database/logs/
+neo4j_data/
+
+# Coverage reports
+coverage.xml
+htmlcov/
+.coverage
+
+# IDE settings
+.idea/
+.vscode/
+*.code-workspace
+
+# Fabric/Synapse paths (when mounted locally)
+/lakehouse/
+

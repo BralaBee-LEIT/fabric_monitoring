@@ -1,0 +1,68 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://usf-fabric-monitoring/schemas/inference_rules.schema.json",
+    "title": "Inference Rules Configuration",
+    "description": "Schema for business domain and location inference rules based on workspace/item name keywords",
+    "type": "object",
+    "properties": {
+        "domains": {
+            "type": "object",
+            "description": "Mapping of domain names to arrays of keywords that identify that domain",
+            "additionalProperties": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "minItems": 1,
+                "description": "Keywords that identify this domain (case-insensitive matching)"
+            },
+            "minProperties": 1
+        },
+        "locations": {
+            "type": "object",
+            "description": "Mapping of location names to arrays of keywords that identify that location",
+            "additionalProperties": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "minItems": 1,
+                "description": "Keywords that identify this location (case-insensitive matching)"
+            },
+            "minProperties": 1
+        }
+    },
+    "required": [
+        "domains",
+        "locations"
+    ],
+    "additionalProperties": false,
+    "examples": [
+        {
+            "domains": {
+                "Human Resources": [
+                    "hr",
+                    "human",
+                    "resource"
+                ],
+                "Finance": [
+                    "finance",
+                    "budget"
+                ]
+            },
+            "locations": {
+                "EMEA": [
+                    "emea",
+                    "europe"
+                ],
+                "Americas": [
+                    "us",
+                    "usa",
+                    "america"
+                ]
+            }
+        }
+    ]
+}

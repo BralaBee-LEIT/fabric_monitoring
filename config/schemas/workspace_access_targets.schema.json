@@ -1,0 +1,71 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://usf-fabric-monitoring/schemas/workspace_access_targets.schema.json",
+    "title": "Workspace Access Targets Configuration",
+    "description": "Schema for security principals that must retain access to every Fabric workspace",
+    "type": "object",
+    "properties": {
+        "description": {
+            "type": "string",
+            "description": "Human-readable description of this configuration file"
+        },
+        "groups": {
+            "type": "array",
+            "description": "List of security principals to enforce on all workspaces",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "displayName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Display name of the security group or principal"
+                    },
+                    "objectId": {
+                        "type": "string",
+                        "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                        "description": "Azure AD Object ID (UUID format)"
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "Admin",
+                            "Member",
+                            "Contributor",
+                            "Viewer"
+                        ],
+                        "description": "Workspace role to assign"
+                    },
+                    "fabricPrincipalType": {
+                        "type": "string",
+                        "enum": [
+                            "AadGroup",
+                            "User",
+                            "ServicePrincipal"
+                        ],
+                        "description": "Principal type for Fabric API calls"
+                    },
+                    "powerBiPrincipalType": {
+                        "type": "string",
+                        "enum": [
+                            "Group",
+                            "User",
+                            "App"
+                        ],
+                        "description": "Principal type for Power BI API calls"
+                    }
+                },
+                "required": [
+                    "displayName",
+                    "objectId",
+                    "role"
+                ],
+                "additionalProperties": false
+            },
+            "minItems": 0
+        }
+    },
+    "required": [
+        "groups"
+    ],
+    "additionalProperties": true
+}

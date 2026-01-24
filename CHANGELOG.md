@@ -2,6 +2,57 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.23 (January 2026) - Robustness & Defensive Data Handling Release
+
+### Added
+- **JSON Schema Validation System** (`config/schemas/`):
+  - `inference_rules.schema.json` - Validates domain/location keyword structure
+  - `workspace_access_targets.schema.json` - Validates security principals with UUID pattern
+  - `workspace_access_suppressions.schema.json` - Validates suppression lists
+  - All schemas use Draft-07 with descriptive error messages
+
+- **Type Safety Utilities** (`core/type_safety.py`):
+  - `safe_int64()` - Nullable Int64 conversion handling NaN/None (fixes Direct Lake Float64 issues)
+  - `coerce_surrogate_keys()` - Enforces Int64 for all `*_sk` columns
+  - `safe_datetime()` - Multi-format datetime parsing with fallbacks
+  - `safe_workspace_lookup()` - Fallback chain for workspace resolution (ID → Name → default)
+  - `microsecond_timestamps()` - Truncates nanoseconds for Spark compatibility
+  - Plus 8 additional utility functions for defensive data handling
+
+- **Environment Detection** (`core/env_detection.py`):
+  - `detect_environment()` - Returns LOCAL, FABRIC_NOTEBOOK, FABRIC_PIPELINE, or AZURE_DEVOPS
+  - `is_fabric_environment()` - Quick check for Fabric context
+  - `get_default_output_path()` - Environment-aware path resolution
+  - `convert_to_spark_path()` - Local mount to Spark-compatible path conversion
+
+- **Enhanced Test Infrastructure**:
+  - `conftest.py` - 9 shared fixtures for sample data, configs, and mock API responses
+  - `test_config_schemas.py` - 14 tests for schema validation
+  - `test_type_safety.py` - 29 tests covering type coercion edge cases
+  - Total test count: 87 (previously ~45)
+
+### Changed
+- **Enhanced `config_validation.py`**:
+  - Added `ConfigValidationError` exception class with detailed error messages
+  - Added `validate_all_configs()` for project-wide validation
+  - Added `load_schema_file()` to load external JSON schemas
+  - Added `print_validation_report()` for human-readable output
+  - Maintains backward compatibility with inline schemas as fallback
+
+- **CI/CD Enhancement** (`.github/workflows/ci.yml`):
+  - Added config validation step before test execution
+  - Config validation failures now block CI
+
+### Fixed
+- **`.gitignore`**: Added patterns for Neo4j data, coverage reports, IDE settings, Fabric paths
+
+### Documentation
+- Updated `copilot-instructions.md` with type safety patterns
+- Updated `PROJECT_ANALYSIS.md` with resolved gaps
+
+---
+
+
 ## 0.3.22 (January 2026) - Project Structure Refinement & Documentation
 
 ### Changed
