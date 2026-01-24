@@ -378,13 +378,213 @@ class LineageExtractor:
             self.logger.warning("No lineage data found.")
             return None
 
+
+class HybridLineageExtractor:
+    """
+    Hybrid lineage extractor that intelligently chooses between
+    iterative extraction and Admin Scanner API based on workspace count.
+    """
+    
+    DEFAULT_THRESHOLD = 50  # Workspaces threshold for auto mode
+    
+    def __init__(self, mode: str = "auto", threshold: int = None):
+        """
+        Initialize hybrid extractor.
+        
+        Args:
+            mode: "auto", "iterative", or "scanner"
+            threshold: Workspace count threshold for auto mode (default 50)
+        """
+        self.logger = setup_logging()
+        self.mode = mode.lower()
+        self.threshold = threshold or self.DEFAULT_THRESHOLD
+        
+        load_dotenv()
+        self.authenticator = create_authenticator_from_env()
+        if not self.authenticator.validate_credentials():
+            raise Exception("Authentication failed")
+        self.token = self.authenticator.get_fabric_token()
+    
+    def extract(self, output_dir: str = "exports/lineage") -> Path:
+        """
+        Extract lineage using the configured mode.
+        
+        Args:
+            output_dir: Output directory for results
+            
+        Returns:
+            Path to output file
+        """
+        if self.mode == "iterative":
+            self.logger.info("Mode: ITERATIVE (forced)")
+            return self._run_iterative(output_dir)
+        
+        elif self.mode == "scanner":
+            self.logger.info("Mode: SCANNER (forced)")
+            return self._run_scanner(output_dir)
+        
+        else:  # auto mode
+            # Get workspace count to decide mode
+            workspace_count = self._count_workspaces()
+            
+            if workspace_count >= self.threshold:
+                self.logger.info(f"Mode: AUTO → SCANNER ({workspace_count} workspaces >= {self.threshold} threshold)")
+                return self._run_scanner(output_dir)
+            else:
+                self.logger.info(f"Mode: AUTO → ITERATIVE ({workspace_count} workspaces < {self.threshold} threshold)")
+                return self._run_iterative(output_dir)
+    
+    def _count_workspaces(self) -> int:
+        """Count accessible workspaces to inform mode selection."""
+        headers = {"Authorization": f"Bearer {self.token}"}
+        url = "https://api.fabric.microsoft.com/v1/workspaces"
+        
+        try:
+            response = requests.get(url, headers=headers)
+            if response.status_code == 200:
+                count = len(response.json().get("value", []))
+                self.logger.info(f"Found {count} accessible workspaces")
+                return count
+        except Exception as e:
+            self.logger.warning(f"Failed to count workspaces: {e}")
+        
+        return 0
+    
+    def _run_iterative(self, output_dir: str) -> Path:
+        """Run existing iterative extraction."""
+        extractor = LineageExtractor()
+        return extractor.extract_lineage(output_dir)
+    
+    def _run_scanner(self, output_dir: str) -> Path:
+        """Run Admin Scanner API extraction."""
+        try:
+            from usf_fabric_monitoring.core.admin_scanner import AdminScannerClient, AdminScannerError
+        except ImportError:
+            self.logger.error("Admin Scanner module not available. Falling back to iterative.")
+            return self._run_iterative(output_dir)
+        
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        # Get all workspace IDs
+        workspace_ids = self._get_all_workspace_ids()
+        
+        if not workspace_ids:
+            self.logger.warning("No workspaces found for scanning")
+            return None
+        
+        self.logger.info(f"Scanning {len(workspace_ids)} workspaces via Admin Scanner API...")
+        
+        try:
+            client = AdminScannerClient(self.token)
+            scan_result = client.scan_workspaces(
+                workspace_ids=workspace_ids,
+                lineage=True,
+                datasource_details=True
+            )
+            
+            # Normalize results to match iterative format
+            lineage_data = client.normalize_lineage_results(scan_result)
+            
+            if lineage_data:
+                output_data = {
+                    "extracted_at": datetime.now().isoformat(),
+                    "extraction_mode": "scanner",
+                    "total_items": len(lineage_data),
+                    "lineage": lineage_data
+                }
+                
+                filename = f"lineage_scanner_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                filepath = output_path / filename
+                
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    json.dump(output_data, f, indent=2, ensure_ascii=False)
+                
+                self.logger.info(f"✅ Scanner lineage exported to {filepath}")
+                self._print_summary(lineage_data)
+                return filepath
+            else:
+                self.logger.warning("No lineage data returned from scanner")
+                return None
+                
+        except AdminScannerError as e:
+            self.logger.error(f"Admin Scanner failed: {e}")
+            self.logger.info("Falling back to iterative extraction...")
+            return self._run_iterative(output_dir)
+        except Exception as e:
+            self.logger.error(f"Unexpected error in scanner mode: {e}")
+            self.logger.info("Falling back to iterative extraction...")
+            return self._run_iterative(output_dir)
+    
+    def _get_all_workspace_ids(self) -> list:
+        """Get all accessible workspace IDs."""
+        headers = {"Authorization": f"Bearer {self.token}"}
+        url = "https://api.fabric.microsoft.com/v1/workspaces"
+        workspace_ids = []
+        
+        while url:
+            try:
+                response = requests.get(url, headers=headers)
+                if response.status_code != 200:
+                    break
+                data = response.json()
+                workspace_ids.extend([ws["id"] for ws in data.get("value", [])])
+                url = data.get("continuationUri")
+            except Exception as e:
+                self.logger.error(f"Failed to get workspaces: {e}")
+                break
+        
+        return workspace_ids
+    
+    def _print_summary(self, lineage_data: list):
+        """Print extraction summary."""
+        item_types = {}
+        for item in lineage_data:
+            it = item.get('Item Type', 'Unknown')
+            item_types[it] = item_types.get(it, 0) + 1
+        
+        print("\n" + "="*40)
+        print("🔗 LINEAGE SUMMARY (Scanner Mode)")
+        print("="*40)
+        print(f"Total Items Found: {len(lineage_data)}")
+        for it, count in sorted(item_types.items(), key=lambda x: -x[1]):
+            print(f"  {it}: {count}")
+        print("="*40 + "\n")
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Extract Lineage for Mirrored Databases and Shortcuts")
+    parser = argparse.ArgumentParser(
+        description="Extract Lineage for Mirrored Databases and Shortcuts",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Extraction Modes:
+  auto       Automatically select mode based on workspace count (default)
+  iterative  Force iterative extraction (granular, more API calls)
+  scanner    Force Admin Scanner API (batch, requires admin permissions)
+
+Examples:
+  python extract_lineage.py --mode auto
+  python extract_lineage.py --mode scanner --output-dir exports/scanner_lineage
+  python extract_lineage.py --mode iterative --threshold 100
+        """
+    )
     parser.add_argument("--output-dir", default="exports/lineage", help="Output directory")
+    parser.add_argument("--mode", choices=["auto", "iterative", "scanner"], default="auto",
+                       help="Extraction mode: auto (default), iterative, or scanner")
+    parser.add_argument("--threshold", type=int, default=50,
+                       help="Workspace count threshold for auto mode (default: 50)")
     args = parser.parse_args()
     
-    extractor = LineageExtractor()
-    extractor.extract_lineage(args.output_dir)
+    if args.mode == "auto" or args.mode == "scanner":
+        # Use hybrid extractor
+        extractor = HybridLineageExtractor(mode=args.mode, threshold=args.threshold)
+        extractor.extract(args.output_dir)
+    else:
+        # Direct iterative mode (legacy behavior)
+        extractor = LineageExtractor()
+        extractor.extract_lineage(args.output_dir)
+
 
 if __name__ == "__main__":
     main()
+
