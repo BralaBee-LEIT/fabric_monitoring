@@ -64,7 +64,7 @@ Violations of the Code of Conduct should be reported to the project maintainers.
 
 3. **Add upstream remote**:
    ```bash
-   git remote add upstream https://github.com/BralaBee-LEIT/usf_fabric_cicd_codebase.git
+   git remote add upstream https://github.com/BralaBee-LEIT/fabric_monitoring.git
    ```
 
 4. **Create the development environment**:

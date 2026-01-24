@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.22 (January 2026) - Project Structure Refinement & Documentation
+
+### Changed
+- **Industry-Standard `src` Layout**: Restructured project to follow Python packaging best practices
+  - CLI scripts moved from `scripts/` to `src/usf_fabric_monitoring/scripts/`
+  - Removed `sys.path` hacks from all entry point scripts
+  - Entry points now correctly resolve via installed package
+
+- **README Enhancement**: Added comprehensive contributor guide
+  - Directory explanations table with "When to Modify" guidance
+  - FAQ section explaining why `lineage_explorer/` is outside `src/`
+  - CLI entry points reference table
+
+### Fixed
+- **Broken CLI Entry Points**: All `usf-*` commands now work correctly
+  - `usf-monitor-hub`, `usf-extract-lineage`, `usf-enforce-access`, `usf-star-schema`, `usf-validate-config`
+  - Makefile updated to use `python -m usf_fabric_monitoring.scripts.*` invocation
+
+- **Documentation Gaps**:
+  - Fixed wrong repo URL in CONTRIBUTING.md (`usf_fabric_cicd_codebase` → `fabric_monitoring`)
+  - Added Admin Scanner API section to `.env.template`
+  - Updated `lineage_explorer/README.md` to document JSON+CSV support
+
+### Added
+- **Workflow Documentation** (`.agent/workflows/`):
+  - `add-cli-entry-point.md` - Procedure for adding new CLI commands
+  - `development.md` - Standard development workflow
+
+---
+
 ## 0.3.21 (January 2026) - Lineage Explorer Advanced Selection Features
 
 ### Added
