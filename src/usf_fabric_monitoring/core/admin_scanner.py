@@ -39,13 +39,13 @@ class AdminScannerClient:
         - "Service principals can use read-only admin APIs" enabled in tenant
     """
     
-    def __init__(self, token: str, api_base: str = "https://api.fabric.microsoft.com/v1"):
+    def __init__(self, token: str, api_base: str = "https://api.powerbi.com/v1.0/myorg"):
         """
         Initialize the Admin Scanner client.
         
         Args:
             token: OAuth2 bearer token with admin permissions
-            api_base: Fabric API base URL
+            api_base: Power BI Admin API base URL (Admin Scanner uses Power BI API, not Fabric API)
         """
         self.token = token
         self.api_base = api_base
