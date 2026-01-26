@@ -438,10 +438,12 @@ Execute a custom Cypher query (read-only).
 Access the statistics dashboard at: `http://localhost:8000/dashboard.html`
 
 Features:
-- Summary KPI cards (workspaces, items, sources, connections, tables)
+- **9 Summary KPI cards**:
+  - Workspaces, Items, External Sources, Connections, Tables
+  - Internal Deps, External Deps, Snowflake sources, OneLake sources
 - Interactive charts (items by type, sources by type)
 - Workspace table with search and filtering
-- External source details (ADLS, S3, SharePoint)
+- External source details (ADLS, S3, SharePoint, Snowflake)
 - Table breakdown by database/schema
 - Neo4j status and data loading
 

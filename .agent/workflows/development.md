@@ -93,6 +93,72 @@ pip install -e .
 - `environment.yml` - Conda environment
 - `.env` / `.env.template` - Environment variables
 
+## Lineage Explorer
+
+> **CRITICAL**: The Lineage Explorer requires **iterative mode** extraction to show relationships. 
+> Scanner mode only captures warehouse metadata without shortcuts/connections.
+
+### Quick Start (Automated - Recommended)
+
+// turbo
+```bash
+# Full end-to-end workflow: extract data, start Neo4j, start server
+make lineage-full
+```
+
+### Manual Steps
+
+1. **Extract lineage data** (iterative mode for rich data):
+   
+   // turbo
+   ```bash
+   # IMPORTANT: Use --mode iterative for shortcuts and connections
+   make extract-lineage-full
+   
+   # Or via module directly:
+   python -m usf_fabric_monitoring.scripts.extract_lineage --mode iterative
+   ```
+
+2. **Start Neo4j** (optional, for graph queries):
+   ```bash
+   cd lineage_explorer && docker compose up -d
+   ```
+
+3. **Start Lineage Explorer**:
+   
+   // turbo
+   ```bash
+   make lineage-explorer
+   ```
+
+### Extraction Modes
+
+| Mode | Command | Data Captured | Use Case |
+|------|---------|---------------|----------|
+| `scanner` | `make extract-lineage` | Warehouses only, no relationships | Quick inventory |
+| `iterative` | `make extract-lineage-full` | Lakehouses, Shortcuts, Mirrored DBs, connections | **Rich visualization** |
+
+### File Naming Patterns
+
+The server selects files in this priority order:
+1. `lineage_*.json` - Iterative extraction (preferred, has shortcuts)
+2. `lineage_scanner_*.json` - Scanner mode (warehouse metadata only)
+3. `mirrored_lineage_*.csv` - Legacy CSV format
+
+> **Note**: If both patterns exist, the server may load the wrong file. 
+> Archive scanner files if you need rich visualization.
+
+### Neo4j Integration
+
+After starting Lineage Explorer, load data into Neo4j via API:
+```bash
+curl -X POST "http://127.0.0.1:8000/api/neo4j/load?clear_existing=true"
+```
+
+**Neo4j Credentials** (from docker-compose.yml):
+- Username: `neo4j`
+- Password: `changeme_in_production` (or set `NEO4J_PASSWORD` env var)
+
 ## GitHub Workflow
 
 ```bash

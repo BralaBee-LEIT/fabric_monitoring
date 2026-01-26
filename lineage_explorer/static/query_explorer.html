@@ -1,16 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Query Explorer - Fabric Lineage</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    
+
     <!-- Fonts (matching graph view) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+
     <style>
         /* CSS Variables (matching graph view light theme) */
         :root {
@@ -29,8 +32,8 @@
             --accent-orange: #f59e0b;
             --accent-pink: #ec4899;
             --accent-red: #ef4444;
-            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             --radius-sm: 6px;
             --radius-md: 8px;
             --radius-lg: 12px;
@@ -64,7 +67,8 @@
             z-index: 100;
         }
 
-        .header-left, .header-right {
+        .header-left,
+        .header-right {
             display: flex;
             align-items: center;
             gap: 16px;
@@ -78,7 +82,11 @@
             font-size: 15px;
         }
 
-        .logo svg { width: 24px; height: 24px; color: var(--accent-blue); }
+        .logo svg {
+            width: 24px;
+            height: 24px;
+            color: var(--accent-blue);
+        }
 
         /* Main Navigation (matching graph view) */
         .main-nav {
@@ -136,7 +144,9 @@
             background: var(--accent-red);
         }
 
-        .neo4j-dot.connected { background: var(--accent-green); }
+        .neo4j-dot.connected {
+            background: var(--accent-green);
+        }
 
         /* Main Layout */
         .main-container {
@@ -218,7 +228,7 @@
         }
 
         .category-btn.active .query-count {
-            background: rgba(255,255,255,0.2);
+            background: rgba(255, 255, 255, 0.2);
             color: white;
         }
 
@@ -516,7 +526,9 @@
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         /* Error State */
@@ -600,34 +612,54 @@
             .main-container {
                 flex-direction: column;
             }
-            
+
             .sidebar {
                 width: 100%;
                 height: auto;
                 position: relative;
                 top: 0;
             }
-            
+
             .main-nav {
                 display: none;
             }
         }
 
         /* Syntax Highlighting */
-        .keyword { color: #c586c0; }
-        .function { color: #dcdcaa; }
-        .string { color: #ce9178; }
-        .property { color: #9cdcfe; }
-        .number { color: #b5cea8; }
-        .comment { color: #6a9955; font-style: italic; }
+        .keyword {
+            color: #c586c0;
+        }
+
+        .function {
+            color: #dcdcaa;
+        }
+
+        .string {
+            color: #ce9178;
+        }
+
+        .property {
+            color: #9cdcfe;
+        }
+
+        .number {
+            color: #b5cea8;
+        }
+
+        .comment {
+            color: #6a9955;
+            font-style: italic;
+        }
     </style>
 </head>
+
 <body>
     <header class="header">
         <div class="header-left">
             <div class="logo">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
                 <span>Query Explorer</span>
             </div>
@@ -636,19 +668,21 @@
             <nav class="main-nav">
                 <a href="/" class="nav-link" title="Graph View">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
                     </svg>
                     Graph
                 </a>
                 <a href="/dashboard.html" class="nav-link" title="Statistics Dashboard">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M18 20V10M12 20V4M6 20v-6"/>
+                        <path d="M18 20V10M12 20V4M6 20v-6" />
                     </svg>
                     Dashboard
                 </a>
                 <a href="/query_explorer.html" class="nav-link active" title="Neo4j Query Explorer">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
                     </svg>
                     Queries
                 </a>
@@ -671,7 +705,8 @@
         <main class="content" id="content">
             <div class="empty-state" id="welcomeState">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <h3>Select a Category</h3>
                 <p>Choose a category from the sidebar to explore Neo4j queries</p>
@@ -1177,6 +1212,93 @@ LIMIT 15`,
                         chartType: "bar"
                     }
                 ]
+            },
+            "Impact Analysis": {
+                icon: "💥",
+                description: "Analyze downstream impact and assess change risk",
+                queries: [
+                    {
+                        name: "Downstream Impact Analysis",
+                        description: "Find all items affected if a specific item is removed or modified",
+                        query: `// Find items with highest downstream impact
+MATCH (i:FabricItem)
+OPTIONAL MATCH (i)<-[:DEPENDS_ON*1..5]-(downstream:FabricItem)
+WITH i, count(DISTINCT downstream) AS downstream_count
+WHERE downstream_count > 0
+OPTIONAL MATCH (i)<-[:CONTAINS]-(w:Workspace)
+RETURN i.name AS critical_item,
+       i.type AS item_type,
+       w.name AS workspace,
+       downstream_count AS affected_items
+ORDER BY downstream_count DESC
+LIMIT 20`,
+                        chartType: "bar"
+                    },
+                    {
+                        name: "External Source Vulnerability",
+                        description: "Sources with most dependents - single point of failure risk",
+                        query: `MATCH (s:ExternalSource)<-[:CONSUMES]-(i:FabricItem)
+WITH s, collect(DISTINCT i) AS consumers
+UNWIND consumers AS consumer
+OPTIONAL MATCH (consumer)<-[:DEPENDS_ON*1..3]-(downstream:FabricItem)
+WITH s, consumers, 
+     count(DISTINCT downstream) AS indirect_dependents
+RETURN s.display_name AS source_name,
+       s.type AS source_type,
+       size(consumers) AS direct_consumers,
+       indirect_dependents,
+       size(consumers) + indirect_dependents AS total_impact
+ORDER BY total_impact DESC
+LIMIT 15`,
+                        chartType: "table"
+                    },
+                    {
+                        name: "Workspace Impact Matrix",
+                        description: "If a workspace goes down, which others are affected?",
+                        query: `MATCH (w1:Workspace)-[:CONTAINS]->(i1:FabricItem)
+MATCH (i2:FabricItem)-[:DEPENDS_ON*1..3]->(i1)
+MATCH (w2:Workspace)-[:CONTAINS]->(i2)
+WHERE w1 <> w2
+WITH w1, w2, count(DISTINCT i2) AS affected_items
+RETURN w1.name AS source_workspace,
+       w2.name AS dependent_workspace,
+       affected_items,
+       "High Risk" AS risk_level
+ORDER BY affected_items DESC
+LIMIT 20`,
+                        chartType: "table"
+                    },
+                    {
+                        name: "Critical Path Analysis",
+                        description: "Longest dependency chains - most fragile paths",
+                        query: `MATCH path = (leaf:FabricItem)-[:DEPENDS_ON*3..8]->(root:FabricItem)
+WHERE NOT EXISTS { MATCH (leaf)<-[:DEPENDS_ON]-() }
+WITH path, length(path) AS chain_length, 
+     [n IN nodes(path) | n.name] AS chain_names
+RETURN chain_names AS critical_path,
+       chain_length AS path_length,
+       head(chain_names) AS leaf_item,
+       last(chain_names) AS root_item
+ORDER BY chain_length DESC
+LIMIT 10`,
+                        chartType: "table"
+                    },
+                    {
+                        name: "Snowflake Source Coverage",
+                        description: "Items consuming Snowflake data and their dependencies",
+                        query: `MATCH (s:ExternalSource {type: 'Snowflake'})<-[:CONSUMES]-(i:FabricItem)
+OPTIONAL MATCH (i)<-[:CONTAINS]-(w:Workspace)
+OPTIONAL MATCH (i)<-[:DEPENDS_ON]-(downstream:FabricItem)
+WITH s, i, w, count(downstream) AS downstream_count
+RETURN s.display_name AS snowflake_source,
+       i.name AS consumer_item,
+       w.name AS workspace,
+       downstream_count AS downstream_dependents
+ORDER BY downstream_count DESC
+LIMIT 25`,
+                        chartType: "table"
+                    }
+                ]
             }
         };
 
@@ -1214,7 +1336,7 @@ LIMIT 15`,
         // Select category
         function selectCategory(categoryName) {
             currentCategory = categoryName;
-            
+
             // Update active state
             document.querySelectorAll('.category-btn').forEach(btn => {
                 btn.classList.remove('active');
@@ -1230,7 +1352,7 @@ LIMIT 15`,
         function renderQueries(categoryName) {
             const category = QUERY_CATEGORIES[categoryName];
             const content = document.getElementById('content');
-            
+
             content.innerHTML = `
                 <div class="category-header">
                     <h2>${category.icon} ${categoryName}</h2>
@@ -1313,28 +1435,28 @@ LIMIT 15`,
 
         // Syntax highlighting for Cypher
         function highlightCypher(code) {
-            const keywords = ['MATCH', 'WHERE', 'RETURN', 'WITH', 'ORDER BY', 'LIMIT', 'OPTIONAL MATCH', 
-                            'CREATE', 'DELETE', 'SET', 'REMOVE', 'MERGE', 'UNWIND', 'CALL', 'YIELD',
-                            'AND', 'OR', 'NOT', 'IN', 'AS', 'DISTINCT', 'DESC', 'ASC', 'BY', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END'];
-            const functions = ['count', 'sum', 'avg', 'min', 'max', 'collect', 'size', 'length', 
-                              'labels', 'type', 'nodes', 'relationships', 'round', 'toLower', 'EXISTS'];
-            
+            const keywords = ['MATCH', 'WHERE', 'RETURN', 'WITH', 'ORDER BY', 'LIMIT', 'OPTIONAL MATCH',
+                'CREATE', 'DELETE', 'SET', 'REMOVE', 'MERGE', 'UNWIND', 'CALL', 'YIELD',
+                'AND', 'OR', 'NOT', 'IN', 'AS', 'DISTINCT', 'DESC', 'ASC', 'BY', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END'];
+            const functions = ['count', 'sum', 'avg', 'min', 'max', 'collect', 'size', 'length',
+                'labels', 'type', 'nodes', 'relationships', 'round', 'toLower', 'EXISTS'];
+
             let highlighted = code
                 .replace(/\/\/.*/g, '<span class="comment">$&</span>')
                 .replace(/'[^']*'/g, '<span class="string">$&</span>')
                 .replace(/"[^"]*"/g, '<span class="string">$&</span>')
                 .replace(/\b(\d+)\b/g, '<span class="number">$1</span>');
-            
+
             keywords.forEach(kw => {
                 const regex = new RegExp(`\\b(${kw})\\b`, 'gi');
                 highlighted = highlighted.replace(regex, '<span class="keyword">$1</span>');
             });
-            
+
             functions.forEach(fn => {
                 const regex = new RegExp(`\\b(${fn})\\s*\\(`, 'gi');
                 highlighted = highlighted.replace(regex, '<span class="function">$1</span>(');
             });
-            
+
             return highlighted;
         }
 
@@ -1367,7 +1489,7 @@ LIMIT 15`,
                 }
 
                 const data = await response.json();
-                
+
                 if (data.error) {
                     throw new Error(data.error);
                 }
@@ -1385,7 +1507,7 @@ LIMIT 15`,
         // Render results
         function renderResults(cardId, results, chartType) {
             const resultsEl = document.getElementById(`${cardId}-results`);
-            
+
             if (!results || results.length === 0) {
                 resultsEl.innerHTML = `
                     <div class="empty-state" style="padding: 1rem;">
@@ -1396,10 +1518,10 @@ LIMIT 15`,
             }
 
             const columns = Object.keys(results[0]);
-            
+
             // Check if this is a KPI-style query (single row with numeric values)
             const isKpi = chartType === 'kpi' || (results.length === 1 && columns.every(c => typeof results[0][c] === 'number'));
-            
+
             if (isKpi) {
                 resultsEl.innerHTML = `
                     <div class="kpi-grid">
@@ -1413,10 +1535,10 @@ LIMIT 15`,
                 `;
                 return;
             }
-            
+
             // Determine if we can show a chart
-            const canChart = chartType !== 'table' && results.length > 0 && 
-                            hasNumericColumn(results);
+            const canChart = chartType !== 'table' && results.length > 0 &&
+                hasNumericColumn(results);
 
             resultsEl.innerHTML = `
                 <div class="results-header">
@@ -1446,7 +1568,7 @@ LIMIT 15`,
                 </div>
                 ` : ''}
             `;
-            
+
             // Store results for export
             window.queryResults = window.queryResults || {};
             window.queryResults[cardId] = results;
@@ -1477,11 +1599,11 @@ LIMIT 15`,
                             ${results.map(row => `
                                 <tr>
                                     ${columns.map(col => {
-                                        const val = row[col];
-                                        const isNum = typeof val === 'number';
-                                        const displayVal = formatValue(val);
-                                        return `<td class="${isNum ? 'number' : ''}">${displayVal}</td>`;
-                                    }).join('')}
+                const val = row[col];
+                const isNum = typeof val === 'number';
+                const displayVal = formatValue(val);
+                return `<td class="${isNum ? 'number' : ''}">${displayVal}</td>`;
+            }).join('')}
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -1511,7 +1633,7 @@ LIMIT 15`,
             const tableView = document.getElementById(`${cardId}-table-view`);
             const chartView = document.getElementById(`${cardId}-chart-view`);
             const buttons = document.querySelectorAll(`#${cardId}-results .view-btn`);
-            
+
             if (view === 'table') {
                 tableView.style.display = 'block';
                 chartView.style.display = 'none';
@@ -1594,10 +1716,10 @@ LIMIT 15`,
                 alert('No results to export');
                 return;
             }
-            
+
             const columns = Object.keys(results[0]);
             const csvRows = [columns.join(',')];
-            
+
             results.forEach(row => {
                 const values = columns.map(col => {
                     let val = row[col];
@@ -1613,7 +1735,7 @@ LIMIT 15`,
                 });
                 csvRows.push(values.join(','));
             });
-            
+
             const csv = csvRows.join('\n');
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
@@ -1628,11 +1750,11 @@ LIMIT 15`,
         async function checkNeo4jConnection() {
             const dot = document.getElementById('statusDot');
             const text = document.getElementById('statusText');
-            
+
             try {
                 const response = await fetch('/api/neo4j/health');
                 const data = await response.json();
-                
+
                 if (data.healthy) {
                     dot.classList.add('connected');
                     text.textContent = `Neo4j Connected (${data.nodes || 0} nodes)`;
@@ -1647,4 +1769,5 @@ LIMIT 15`,
         }
     </script>
 </body>
+
 </html>

@@ -12,7 +12,7 @@ YELLOW = \033[1;33m
 RED = \033[0;31m
 NC = \033[0m # No Color
 
-.PHONY: help create update delete status install validate-config test test-smoke clean lint format check-env enforce-access monitor-hub extract-lineage compute-analysis generate-reports audit-sp-access extract-details build export activate dev-setup dev-check test-duration-fix test-offline test-comparative test-complete-pipeline test-all star-schema star-schema-ddl star-schema-describe
+.PHONY: help create update delete status install validate-config test test-smoke clean lint format check-env enforce-access monitor-hub extract-lineage extract-lineage-full lineage-full compute-analysis generate-reports audit-sp-access extract-details build export activate dev-setup dev-check test-duration-fix test-offline test-comparative test-complete-pipeline test-all star-schema star-schema-ddl star-schema-describe
 
 # Default target
 help:
@@ -36,7 +36,9 @@ help:
 	@echo "  $(GREEN)export$(NC)      - Export current environment to new yml file"
 	@echo "  $(GREEN)enforce-access$(NC) - Ensure required groups keep workspace access"
 	@echo "  $(GREEN)monitor-hub$(NC) - Run Monitor Hub activity analysis"
-	@echo "  $(GREEN)extract-lineage$(NC) - Extract Lineage (Mirrored Databases & Shortcuts)"
+	@echo "  $(GREEN)extract-lineage$(NC) - Extract Lineage (scanner mode - warehouse metadata only)"
+	@echo "  $(GREEN)extract-lineage-full$(NC) - Extract Lineage (iterative mode - RECOMMENDED for rich visualization)"
+	@echo "  $(GREEN)lineage-full$(NC) - Full workflow: extract + Neo4j + explorer (RECOMMENDED)"
 	@echo "  $(GREEN)lineage-explorer$(NC) - Interactive D3.js Lineage Visualization (http://127.0.0.1:8000)"
 	@echo "  $(GREEN)compute-analysis$(NC) - Run Compute Analysis (alias for monitor-hub)"
 	@echo "  $(GREEN)generate-reports$(NC) - Generate reports from existing extracted data"
@@ -288,6 +290,40 @@ extract-lineage:
 		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
 		echo "$(YELLOW)Create it first with: make create$(NC)"; \
 	fi
+
+# Lineage Extraction - Full (Iterative mode with shortcuts - RECOMMENDED for rich visualization)
+# NOTE: Scanner mode only captures warehouse metadata. Use this for Lakehouse shortcuts and connections.
+extract-lineage-full:
+	@echo "$(GREEN)Running Full Lineage Extraction (Iterative Mode - Lakehouses, Shortcuts, Connections)$(NC)"
+	@echo "$(YELLOW)This extracts rich relationship data required for visualization$(NC)"
+	@if conda env list | grep -q "^$(ENV_NAME) "; then \
+		OUTPUT_ARG=$${OUTPUT_DIR:+--output-dir $$OUTPUT_DIR}; \
+		conda run --no-capture-output -n $(ENV_NAME) python -m usf_fabric_monitoring.scripts.extract_lineage --mode iterative $$OUTPUT_ARG; \
+	else \
+		echo "$(RED)❌ Environment $(ENV_NAME) does not exist$(NC)"; \
+		echo "$(YELLOW)Create it first with: make create$(NC)"; \
+	fi
+
+# Full Lineage Explorer Workflow (End-to-End Automation)
+# Performs: Extract (iterative) → Start Neo4j → Start Explorer → Load to Neo4j
+lineage-full:
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)🔗 FULL LINEAGE EXPLORER WORKFLOW$(NC)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Step 1: Extracting lineage data (iterative mode)...$(NC)"
+	@$(MAKE) extract-lineage-full
+	@echo ""
+	@echo "$(YELLOW)Step 2: Starting Neo4j database...$(NC)"
+	@cd lineage_explorer && docker compose up -d 2>/dev/null || echo "$(YELLOW)Neo4j already running or docker not available$(NC)"
+	@sleep 5
+	@echo ""
+	@echo "$(YELLOW)Step 3: Starting Lineage Explorer...$(NC)"
+	@echo "$(GREEN)Server will start at http://127.0.0.1:8000$(NC)"
+	@echo "$(YELLOW)After startup, data will be loaded into Neo4j automatically$(NC)"
+	@echo "$(YELLOW)Press Ctrl+C to stop the server$(NC)"
+	@$(MAKE) lineage-explorer
+
 
 # Lineage Explorer (Interactive D3.js Visualization)
 lineage-explorer:

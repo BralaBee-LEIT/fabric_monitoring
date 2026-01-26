@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.24 (January 2026) - Dashboard Enrichment & Lineage Automation Release
+
+### Added
+- **Enhanced Dashboard Statistics** (`lineage_explorer/static/dashboard.html`):
+  - 4 new stat cards: Internal Deps (172), External Deps (115), Snowflake (38), OneLake (54)
+  - Total dashboard now shows 9 KPI metrics at a glance
+  - Neo4j stats integration for enriched dependency counts
+
+- **Impact Analysis Query Category** (`lineage_explorer/static/query_explorer.html`):
+  - 5 new governance-focused queries:
+    - Downstream Impact Analysis - Find items with highest downstream dependencies
+    - External Source Vulnerability - Sources that are single points of failure
+    - Workspace Impact Matrix - Cross-workspace failure impact assessment
+    - Critical Path Analysis - Longest/most fragile dependency chains
+    - Snowflake Source Coverage - Track Snowflake data consumers
+
+- **Lineage Extraction Automation** (`Makefile`):
+  - `make extract-lineage-full` - Iterative mode extraction with shortcuts (rich visualization data)
+  - `make lineage-full` - Full end-to-end workflow (extract → Neo4j → explorer)
+
+### Changed
+- **Development Workflow** (`.agent/workflows/development.md`):
+  - Documented critical difference between `scanner` and `iterative` extraction modes
+  - Added file naming patterns and priority documentation
+  - Added Neo4j integration instructions
+
+### Documentation
+- Updated Lineage Explorer API docs with new dashboard features
+- Query Explorer now has 10 categories with 45+ pre-built queries
+
+---
+
 ## 0.3.23 (January 2026) - Robustness & Defensive Data Handling Release
 
 ### Added
