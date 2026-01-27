@@ -800,6 +800,8 @@
         // State
         let selectedTableId = null;
         let currentImpactData = null;
+        let searchCache = new Map();
+        let expandedNodes = new Set();
 
         // DOM elements
         const searchForm = document.getElementById('searchForm');
@@ -813,17 +815,36 @@
         const downstreamCount = document.getElementById('downstreamCount');
         const exportBtn = document.getElementById('exportBtn');
 
-        // Search tables
-        searchForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const query = tableSearch.value.trim();
-            if (!query) return;
+        // Debounce utility
+        function debounce(fn, delay) {
+            let timeout;
+            return (...args) => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => fn(...args), delay);
+            };
+        }
+
+        // Live search with debounce (auto-search after typing)
+        const performSearch = debounce(async (query) => {
+            if (!query || query.length < 2) return;
+
+            // Check cache
+            if (searchCache.has(query)) {
+                const cached = searchCache.get(query);
+                renderTablesResults(cached.tables);
+                tableCount.textContent = `${cached.count} tables`;
+                return;
+            }
 
             tablesBody.innerHTML = '<tr><td colspan="4" class="loading">Searching...</td></tr>';
 
             try {
-                const response = await fetch(`/api/tables/search?q=${encodeURIComponent(query)}`);
+                const response = await fetch(`/api/tables/search?q=${encodeURIComponent(query)}&limit=100`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
+
+                // Cache results
+                searchCache.set(query, data);
 
                 if (data.tables && data.tables.length > 0) {
                     renderTablesResults(data.tables);
@@ -836,13 +857,56 @@
                 console.error('Search failed:', error);
                 tablesBody.innerHTML = `<tr><td colspan="4" class="empty-state"><p style="color: var(--accent-red);">Search failed: ${error.message}</p></td></tr>`;
             }
+        }, 300);
+
+        // Search input events
+        tableSearch.addEventListener('input', (e) => performSearch(e.target.value.trim()));
+
+        searchForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const query = tableSearch.value.trim();
+            if (!query) return;
+            performSearch(query);
         });
+
+        // Keyboard navigation in results
+        tableSearch.addEventListener('keydown', (e) => {
+            const rows = tablesBody.querySelectorAll('tr.clickable');
+            if (!rows.length) return;
+
+            const selectedRow = tablesBody.querySelector('tr.selected');
+            let currentIndex = selectedRow ? Array.from(rows).indexOf(selectedRow) : -1;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                currentIndex = Math.min(currentIndex + 1, rows.length - 1);
+                selectRowByIndex(rows, currentIndex);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                currentIndex = Math.max(currentIndex - 1, 0);
+                selectRowByIndex(rows, currentIndex);
+            } else if (e.key === 'Enter' && selectedRow) {
+                e.preventDefault();
+                const tableId = selectedRow.dataset.tableId;
+                selectTable(tableId);
+            }
+        });
+
+        function selectRowByIndex(rows, index) {
+            rows.forEach((row, i) => {
+                row.classList.toggle('selected', i === index);
+            });
+            if (rows[index]) {
+                rows[index].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        }
 
         // Render tables results
         function renderTablesResults(tables) {
             tablesBody.innerHTML = tables.map(table => `
                 <tr class="clickable ${selectedTableId === table.table_id ? 'selected' : ''}" 
-                    data-table-id="${table.table_id}">
+                    data-table-id="${table.table_id}"
+                    data-table-name="${escapeHtml(table.table_name)}">
                     <td class="table-name">${escapeHtml(table.table_name)}</td>
                     <td>${escapeHtml(table.schema || 'dbo')}</td>
                     <td>${escapeHtml(table.database || '-')}</td>
@@ -862,18 +926,28 @@
         // Select table and load impact
         async function selectTable(tableId) {
             selectedTableId = tableId;
+            expandedNodes.clear();
 
             // Update selected state
             tablesBody.querySelectorAll('tr').forEach(row => {
                 row.classList.toggle('selected', row.dataset.tableId === tableId);
             });
 
-            graphContainer.innerHTML = '<div class="loading">Loading impact analysis...</div>';
+            graphContainer.innerHTML = `
+                <div style="text-align: center;">
+                    <div class="loading" style="margin-bottom: 8px;">Loading impact analysis...</div>
+                    <p style="font-size: 12px; color: var(--text-muted);">Tracing downstream dependencies</p>
+                </div>
+            `;
             statsGrid.style.display = 'none';
             downstreamSection.style.display = 'none';
 
             try {
                 const response = await fetch(`/api/tables/${encodeURIComponent(tableId)}/impact`);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `HTTP ${response.status}`);
+                }
                 const data = await response.json();
 
                 currentImpactData = data;
@@ -883,11 +957,21 @@
                 exportBtn.style.display = 'flex';
             } catch (error) {
                 console.error('Impact analysis failed:', error);
-                graphContainer.innerHTML = `<div class="empty-state"><p style="color: var(--accent-red);">Impact analysis failed: ${error.message}</p></div>`;
+                graphContainer.innerHTML = `
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent-red);">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="15" y1="9" x2="9" y2="15"/>
+                            <line x1="9" y1="9" x2="15" y2="15"/>
+                        </svg>
+                        <p style="color: var(--accent-red);">Impact analysis failed</p>
+                        <p style="font-size: 12px; margin-top: 8px;">${escapeHtml(error.message)}</p>
+                    </div>
+                `;
             }
         }
 
-        // Render impact visualization as tree
+        // Render impact visualization as collapsible tree
         function renderImpactVisualization(data) {
             const { table, direct_consumers, downstream_items } = data;
 
@@ -898,6 +982,7 @@
                             <path d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                         </svg>
                         <p>No downstream dependencies found for this table</p>
+                        <p style="font-size: 12px; margin-top: 8px; color: var(--text-muted);">This table has no items consuming its data in Fabric</p>
                     </div>
                 `;
                 return;
@@ -905,50 +990,128 @@
 
             let html = '<div class="impact-tree">';
 
-            // Root: Table node
+            // Root: Table node with expand all button
             html += `
+                <div class="tree-controls" style="margin-bottom: 12px; display: flex; gap: 8px;">
+                    <button class="btn btn-secondary" onclick="expandAll()" style="padding: 4px 8px; font-size: 11px;">
+                        Expand All
+                    </button>
+                    <button class="btn btn-secondary" onclick="collapseAll()" style="padding: 4px 8px; font-size: 11px;">
+                        Collapse All
+                    </button>
+                </div>
                 <div class="tree-node">
                     <div class="tree-node-content level-0">
                         <svg class="node-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                         </svg>
                         <span class="node-name">${escapeHtml(table.name)}</span>
-                        <span class="node-type">Table</span>
-                        <span class="node-workspace">${escapeHtml(table.database || '')} • ${escapeHtml(table.schema || 'dbo')}</span>
+                        <span class="node-type">Source Table</span>
+                        <span class="node-workspace">${escapeHtml(table.database || '')}${table.database && table.schema ? ' • ' : ''}${escapeHtml(table.schema || '')}</span>
                     </div>
                 </div>
             `;
 
-            // Direct consumers (Level 1)
-            direct_consumers.forEach(consumer => {
-                html += renderTreeNode(consumer, 1);
-
-                // Find downstream items from this consumer
+            // Build tree structure by consumer
+            direct_consumers.forEach((consumer, idx) => {
+                const nodeId = `consumer-${idx}`;
                 const consumerDownstream = downstream_items.filter(d => d.source_id === consumer.item_id);
-                consumerDownstream.forEach(downstream => {
-                    const depth = Math.min(downstream.depth + 1, 3);
-                    html += renderTreeNode(downstream, depth);
-                });
+                const hasChildren = consumerDownstream.length > 0;
+
+                html += renderCollapsibleNode(consumer, 1, nodeId, hasChildren);
+
+                if (hasChildren) {
+                    html += `<div class="tree-children" data-parent="${nodeId}" style="display: none;">`;
+                    consumerDownstream.forEach((downstream, dIdx) => {
+                        const childId = `${nodeId}-${dIdx}`;
+                        const depth = Math.min(downstream.depth + 1, 3);
+                        html += renderCollapsibleNode(downstream, depth, childId, false);
+                    });
+                    html += '</div>';
+                }
             });
 
             html += '</div>';
             graphContainer.innerHTML = html;
+
+            // Attach toggle handlers
+            graphContainer.querySelectorAll('.tree-toggle').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const nodeId = e.currentTarget.dataset.nodeId;
+                    toggleNode(nodeId);
+                });
+            });
         }
 
-        function renderTreeNode(item, level) {
+        function renderCollapsibleNode(item, level, nodeId, hasChildren) {
             const levelClass = `level-${Math.min(level, 3)}`;
             const icon = getItemIcon(item.item_type);
+            const toggleIcon = hasChildren ? `
+                <button class="tree-toggle" data-node-id="${nodeId}" style="
+                    background: none; border: none; cursor: pointer; padding: 2px; 
+                    margin-right: 4px; color: var(--text-muted); display: flex;
+                ">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                </button>
+            ` : '<span style="width: 16px; display: inline-block;"></span>';
 
             return `
-                <div class="tree-node">
+                <div class="tree-node" data-node-id="${nodeId}">
                     <div class="tree-node-content ${levelClass}">
+                        ${toggleIcon}
                         ${icon}
                         <span class="node-name">${escapeHtml(item.item_name)}</span>
-                        <span class="node-type">${escapeHtml(item.item_type)}</span>
+                        <span class="node-type">${formatItemType(item.item_type)}</span>
                         <span class="node-workspace">${escapeHtml(item.workspace || '')}</span>
                     </div>
                 </div>
             `;
+        }
+
+        function toggleNode(nodeId) {
+            const children = graphContainer.querySelector(`[data-parent="${nodeId}"]`);
+            const toggle = graphContainer.querySelector(`.tree-toggle[data-node-id="${nodeId}"]`);
+
+            if (children) {
+                const isExpanded = children.style.display !== 'none';
+                children.style.display = isExpanded ? 'none' : 'block';
+                if (toggle) {
+                    toggle.querySelector('svg').style.transform = isExpanded ? '' : 'rotate(90deg)';
+                }
+                isExpanded ? expandedNodes.delete(nodeId) : expandedNodes.add(nodeId);
+            }
+        }
+
+        function expandAll() {
+            graphContainer.querySelectorAll('.tree-children').forEach(child => {
+                child.style.display = 'block';
+            });
+            graphContainer.querySelectorAll('.tree-toggle svg').forEach(svg => {
+                svg.style.transform = 'rotate(90deg)';
+            });
+        }
+
+        function collapseAll() {
+            graphContainer.querySelectorAll('.tree-children').forEach(child => {
+                child.style.display = 'none';
+            });
+            graphContainer.querySelectorAll('.tree-toggle svg').forEach(svg => {
+                svg.style.transform = '';
+            });
+        }
+
+        function formatItemType(itemType) {
+            const formats = {
+                'SemanticModel': 'Semantic Model',
+                'MirroredDatabase': 'Mirrored DB',
+                'Lakehouse': 'Lakehouse',
+                'Report': 'Report',
+                'Dataflow': 'Dataflow',
+                'Warehouse': 'Warehouse'
+            };
+            return formats[itemType] || itemType;
         }
 
         function getItemIcon(itemType) {
@@ -956,7 +1119,9 @@
                 'Lakehouse': '<svg class="node-icon" style="color: var(--accent-green);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" /></svg>',
                 'SemanticModel': '<svg class="node-icon" style="color: var(--accent-purple);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>',
                 'Report': '<svg class="node-icon" style="color: var(--accent-amber);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>',
-                'MirroredDatabase': '<svg class="node-icon" style="color: var(--accent-cyan);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>'
+                'MirroredDatabase': '<svg class="node-icon" style="color: var(--accent-cyan);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>',
+                'Dataflow': '<svg class="node-icon" style="color: var(--accent-blue);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>',
+                'Warehouse': '<svg class="node-icon" style="color: var(--accent-green);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>'
             };
             return icons[itemType] || '<svg class="node-icon" style="color: var(--accent-blue);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>';
         }
@@ -985,7 +1150,7 @@
             downstreamBody.innerHTML = allItems.map(item => `
                 <tr>
                     <td>${escapeHtml(item.item_name)}</td>
-                    <td><span class="item-type ${getTypeClass(item.item_type)}">${escapeHtml(item.item_type)}</span></td>
+                    <td><span class="item-type ${getTypeClass(item.item_type)}">${formatItemType(item.item_type)}</span></td>
                     <td>${escapeHtml(item.workspace || '-')}</td>
                     <td class="text-right">${item.depth}</td>
                 </tr>
@@ -999,30 +1164,57 @@
             const classes = {
                 'Lakehouse': 'type-lakehouse',
                 'SemanticModel': 'type-semantic',
-                'Report': 'type-report'
+                'Report': 'type-report',
+                'MirroredDatabase': 'type-lakehouse',
+                'Dataflow': 'type-default',
+                'Warehouse': 'type-lakehouse'
             };
             return classes[itemType] || 'type-default';
         }
 
-        // Export functionality
+        // Export functionality with proper CSV escaping
         exportBtn.addEventListener('click', () => {
             if (!currentImpactData) return;
 
+            const escapeCsvField = (field) => {
+                if (field == null) return '';
+                const str = String(field);
+                if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                    return `"${str.replace(/"/g, '""')}"`;
+                }
+                return str;
+            };
+
             const csvRows = [
-                ['Item Name', 'Item Type', 'Workspace', 'Depth', 'Relationship'].join(','),
+                ['Item Name', 'Item Type', 'Workspace', 'Depth', 'Relationship', 'Source Table'].join(','),
                 ...currentImpactData.direct_consumers.map(d =>
-                    [d.item_name, d.item_type, d.workspace || '', '0', 'Direct Consumer'].join(',')
+                    [
+                        escapeCsvField(d.item_name),
+                        escapeCsvField(d.item_type),
+                        escapeCsvField(d.workspace),
+                        '0',
+                        'Direct Consumer',
+                        escapeCsvField(currentImpactData.table.name)
+                    ].join(',')
                 ),
                 ...currentImpactData.downstream_items.map(d =>
-                    [d.item_name, d.item_type, d.workspace || '', d.depth, 'Downstream'].join(',')
+                    [
+                        escapeCsvField(d.item_name),
+                        escapeCsvField(d.item_type),
+                        escapeCsvField(d.workspace),
+                        d.depth,
+                        'Downstream',
+                        escapeCsvField(currentImpactData.table.name)
+                    ].join(',')
                 )
             ];
 
-            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `table_impact_${currentImpactData.table.name}_${new Date().toISOString().slice(0, 10)}.csv`;
+            const safeName = currentImpactData.table.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+            a.download = `table_impact_${safeName}_${new Date().toISOString().slice(0, 10)}.csv`;
             a.click();
             URL.revokeObjectURL(url);
         });

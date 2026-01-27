@@ -951,11 +951,13 @@ async def get_table_impact(
     _require_neo4j()
     
     try:
-        # First get table info
+        # First try to get table by ID, then fall back to name search
         table_query = """
-        MATCH (t:Table {id: $table_id})
+        MATCH (t:Table)
+        WHERE t.id = $table_id OR toLower(t.name) = toLower($table_id)
         RETURN t.id as id, t.name as name, t.schema as schema, 
                t.database as database, t.full_path as full_path
+        LIMIT 1
         """
         table_results = _neo4j_client.run_query(table_query, {"table_id": table_id})
         
@@ -963,6 +965,7 @@ async def get_table_impact(
             raise HTTPException(status_code=404, detail=f"Table not found: {table_id}")
         
         table_info = table_results[0]
+        actual_table_id = table_info["id"]  # Use the actual ID for subsequent queries
         
         # Get direct consumers (items that MIRROR or USE this table)
         consumers_query = """
@@ -975,7 +978,7 @@ async def get_table_impact(
             w.name as workspace,
             'direct' as relationship
         """
-        direct_consumers = _neo4j_client.run_query(consumers_query, {"table_id": table_id})
+        direct_consumers = _neo4j_client.run_query(consumers_query, {"table_id": actual_table_id})
         
         # Get full downstream impact from each direct consumer
         all_downstream = []
