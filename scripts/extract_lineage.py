@@ -274,6 +274,63 @@ class LineageExtractor:
             
         return connections
 
+    def get_dataset_datasources(self, workspace_id, dataset_id):
+        """Fetch datasources for a dataset/semantic model via Power BI API."""
+        # Power BI API uses group_id (same as workspace_id)
+        url = f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}/datasets/{dataset_id}/datasources"
+        datasources = []
+        
+        try:
+            response = self.make_request_with_retry("GET", url)
+            if response and response.status_code == 200:
+                datasources = response.json().get("value", [])
+        except Exception as e:
+            self.logger.debug(f"No datasources for dataset {dataset_id}: {str(e)}")
+            
+        return datasources
+
+    def get_dataset_tables(self, workspace_id, dataset_id):
+        """Fetch tables for a dataset/semantic model via Power BI API."""
+        url = f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}/datasets/{dataset_id}/tables"
+        tables = []
+        
+        try:
+            response = self.make_request_with_retry("GET", url)
+            if response and response.status_code == 200:
+                tables = response.json().get("value", [])
+        except Exception as e:
+            self.logger.debug(f"No tables for dataset {dataset_id}: {str(e)}")
+            
+        return tables
+
+    def get_report_definition(self, workspace_id, report_id):
+        """Get report details including upstream dataset binding."""
+        # Try Fabric API first for report details
+        url = f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}/reports/{report_id}"
+        
+        try:
+            response = self.make_request_with_retry("GET", url)
+            if response and response.status_code == 200:
+                return response.json()
+        except Exception as e:
+            self.logger.debug(f"No report details for {report_id}: {str(e)}")
+            
+        return None
+
+    def get_dataflow_datasources(self, workspace_id, dataflow_id):
+        """Fetch datasources for a dataflow."""
+        url = f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}/dataflows/{dataflow_id}/datasources"
+        datasources = []
+        
+        try:
+            response = self.make_request_with_retry("GET", url)
+            if response and response.status_code == 200:
+                datasources = response.json().get("value", [])
+        except Exception as e:
+            self.logger.debug(f"No datasources for dataflow {dataflow_id}: {str(e)}")
+            
+        return datasources
+
     def extract_lineage(self, output_dir="exports/lineage"):
         """Main extraction logic."""
         output_path = Path(output_dir)
@@ -410,7 +467,7 @@ class LineageExtractor:
             except Exception as e:
                 self.logger.error(f"Error processing KQL Shortcuts in {ws_name}: {e}")
 
-            # --- 4. Semantic Models (Datasets) with Connections ---
+            # --- 4. Semantic Models (Datasets) with Connections and Datasources ---
             try:
                 models = self.get_semantic_models(ws_id)
                 if models:
@@ -423,6 +480,13 @@ class LineageExtractor:
                     # Get connections for the model
                     connections = self.get_item_connections(ws_id, model_id)
                     
+                    # Get datasources (shows what external/internal sources this model connects to)
+                    datasources = self.get_dataset_datasources(ws_id, model_id)
+                    
+                    # Extract source types from datasources
+                    source_types = list(set(ds.get("datasourceType", "Unknown") for ds in datasources))
+                    source_connections = [ds.get("connectionDetails", {}) for ds in datasources]
+                    
                     lineage_data.append({
                         "Workspace Name": ws_name,
                         "Workspace ID": ws_id,
@@ -431,64 +495,92 @@ class LineageExtractor:
                         "Item Type": "SemanticModel",
                         "Shortcut Name": None,
                         "Shortcut Path": None,
-                        "Source Type": "Dataset",
-                        "Source Connection": None,
+                        "Source Type": ", ".join(source_types) if source_types else "Dataset",
+                        "Source Connection": json.dumps(source_connections) if source_connections else None,
                         "Source Database": None,
-                        "Connection ID": None,
+                        "Connection ID": [c.get("id") for c in connections] if connections else None,
+                        "Datasource Count": len(datasources),
                         "Connection Count": len(connections),
-                        "Connections": [c.get("id") for c in connections] if connections else [],
-                        "Full Definition": json.dumps(connections) if connections else None
+                        "Full Definition": json.dumps({"datasources": datasources, "connections": connections}) if (datasources or connections) else None
                     })
+                    
+                    self.logger.info(f"    Model: {model_name} - {len(datasources)} datasources, {len(connections)} connections")
                     
             except Exception as e:
                 self.logger.error(f"Error processing Semantic Models in {ws_name}: {e}")
 
-            # --- 5. Dataflows ---
+            # --- 5. Dataflows with Datasources ---
             try:
                 dataflows = self.get_dataflows(ws_id)
                 if dataflows:
                     self.logger.info(f"  Found {len(dataflows)} Dataflows")
 
                 for df in dataflows:
+                    df_id = df["id"]
+                    df_name = df.get("displayName", "Unknown")
+                    
+                    # Get datasources for the dataflow
+                    datasources = self.get_dataflow_datasources(ws_id, df_id)
+                    
+                    source_types = list(set(ds.get("datasourceType", "Unknown") for ds in datasources))
+                    
                     lineage_data.append({
                         "Workspace Name": ws_name,
                         "Workspace ID": ws_id,
-                        "Item Name": df.get("displayName", "Unknown"),
-                        "Item ID": df["id"],
+                        "Item Name": df_name,
+                        "Item ID": df_id,
                         "Item Type": "Dataflow",
                         "Shortcut Name": None,
                         "Shortcut Path": None,
-                        "Source Type": "Dataflow",
-                        "Source Connection": None,
+                        "Source Type": ", ".join(source_types) if source_types else "Dataflow",
+                        "Source Connection": json.dumps([ds.get("connectionDetails") for ds in datasources]) if datasources else None,
                         "Source Database": None,
                         "Connection ID": None,
-                        "Full Definition": None
+                        "Datasource Count": len(datasources),
+                        "Full Definition": json.dumps(datasources) if datasources else None
                     })
+                    
+                    if datasources:
+                        self.logger.info(f"    Dataflow: {df_name} - {len(datasources)} datasources")
                     
             except Exception as e:
                 self.logger.error(f"Error processing Dataflows in {ws_name}: {e}")
 
-            # --- 6. Reports ---
+            # --- 6. Reports with Upstream Dataset Binding ---
             try:
                 reports = self.get_reports(ws_id)
                 if reports:
                     self.logger.info(f"  Found {len(reports)} Reports")
 
                 for report in reports:
+                    report_id = report["id"]
+                    report_name = report.get("displayName", "Unknown")
+                    
+                    # Get report details for upstream dataset binding
+                    report_details = self.get_report_definition(ws_id, report_id)
+                    
+                    dataset_id = report_details.get("datasetId") if report_details else None
+                    dataset_workspace_id = report_details.get("datasetWorkspaceId") if report_details else None
+                    
                     lineage_data.append({
                         "Workspace Name": ws_name,
                         "Workspace ID": ws_id,
-                        "Item Name": report.get("displayName", "Unknown"),
-                        "Item ID": report["id"],
+                        "Item Name": report_name,
+                        "Item ID": report_id,
                         "Item Type": "Report",
                         "Shortcut Name": None,
                         "Shortcut Path": None,
                         "Source Type": "PowerBI",
-                        "Source Connection": None,
-                        "Source Database": None,
-                        "Connection ID": None,
-                        "Full Definition": None
+                        "Source Connection": dataset_id,  # Upstream dataset ID
+                        "Source Database": dataset_workspace_id,  # Dataset's workspace
+                        "Connection ID": dataset_id,
+                        "Bound Dataset ID": dataset_id,
+                        "Cross Workspace": dataset_workspace_id != ws_id if (dataset_workspace_id and ws_id) else None,
+                        "Full Definition": json.dumps(report_details) if report_details else None
                     })
+                    
+                    if dataset_id:
+                        self.logger.info(f"    Report: {report_name} -> Dataset: {dataset_id}")
                     
             except Exception as e:
                 self.logger.error(f"Error processing Reports in {ws_name}: {e}")
