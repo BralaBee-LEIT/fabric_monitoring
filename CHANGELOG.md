@@ -34,6 +34,9 @@ All notable changes to this project will be documented in this file.
   - Proper CSV escaping (handles commas, quotes, newlines)
   - Additional item type icons (Dataflow, Warehouse)
   - Friendly type formatting (SemanticModel → Semantic Model)
+  - **Source Type Badges**: Green=Lakehouse (1,760 tables), Purple=Snowflake (42 tables)
+  - **Location Column**: Shows database.schema or Tables/path for context
+  - **Impact Tree Root**: Displays source type badge and full path
 
 ### Fixed
 - Added explicit `/table_impact.html` route to `server.py`
