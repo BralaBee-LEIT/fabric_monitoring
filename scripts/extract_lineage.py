@@ -197,6 +197,83 @@ class LineageExtractor:
             self.logger.error(f"Failed to decode payload: {str(e)}")
             return None
 
+    def get_semantic_models(self, workspace_id):
+        """Fetch Semantic Models (datasets) in a workspace."""
+        url = f"{self.api_base}/workspaces/{workspace_id}/items?type=SemanticModel"
+        items = []
+        
+        try:
+            while url:
+                response = self.make_request_with_retry("GET", url)
+                if not response or response.status_code != 200:
+                    code = response.status_code if response else "Unknown"
+                    if code != 403:
+                        self.logger.debug(f"No Semantic Models for {workspace_id}: {code}")
+                    break
+                    
+                data = response.json()
+                items.extend(data.get("value", []))
+                url = data.get("continuationUri")
+                
+        except Exception as e:
+            self.logger.error(f"Error fetching Semantic Models for {workspace_id}: {str(e)}")
+            
+        return items
+
+    def get_dataflows(self, workspace_id):
+        """Fetch Dataflows in a workspace."""
+        url = f"{self.api_base}/workspaces/{workspace_id}/items?type=Dataflow"
+        items = []
+        
+        try:
+            while url:
+                response = self.make_request_with_retry("GET", url)
+                if not response or response.status_code != 200:
+                    break
+                    
+                data = response.json()
+                items.extend(data.get("value", []))
+                url = data.get("continuationUri")
+                
+        except Exception as e:
+            self.logger.error(f"Error fetching Dataflows for {workspace_id}: {str(e)}")
+            
+        return items
+
+    def get_reports(self, workspace_id):
+        """Fetch Reports in a workspace."""
+        url = f"{self.api_base}/workspaces/{workspace_id}/items?type=Report"
+        items = []
+        
+        try:
+            while url:
+                response = self.make_request_with_retry("GET", url)
+                if not response or response.status_code != 200:
+                    break
+                    
+                data = response.json()
+                items.extend(data.get("value", []))
+                url = data.get("continuationUri")
+                
+        except Exception as e:
+            self.logger.error(f"Error fetching Reports for {workspace_id}: {str(e)}")
+            
+        return items
+
+    def get_item_connections(self, workspace_id, item_id):
+        """Fetch connections for a specific item."""
+        url = f"{self.api_base}/workspaces/{workspace_id}/items/{item_id}/connections"
+        connections = []
+        
+        try:
+            response = self.make_request_with_retry("GET", url)
+            if response and response.status_code == 200:
+                connections = response.json().get("value", [])
+        except Exception as e:
+            self.logger.debug(f"No connections for {item_id}: {str(e)}")
+            
+        return connections
+
     def extract_lineage(self, output_dir="exports/lineage"):
         """Main extraction logic."""
         output_path = Path(output_dir)
@@ -332,6 +409,89 @@ class LineageExtractor:
 
             except Exception as e:
                 self.logger.error(f"Error processing KQL Shortcuts in {ws_name}: {e}")
+
+            # --- 4. Semantic Models (Datasets) with Connections ---
+            try:
+                models = self.get_semantic_models(ws_id)
+                if models:
+                    self.logger.info(f"  Found {len(models)} Semantic Models")
+
+                for model in models:
+                    model_id = model["id"]
+                    model_name = model.get("displayName", "Unknown")
+                    
+                    # Get connections for the model
+                    connections = self.get_item_connections(ws_id, model_id)
+                    
+                    lineage_data.append({
+                        "Workspace Name": ws_name,
+                        "Workspace ID": ws_id,
+                        "Item Name": model_name,
+                        "Item ID": model_id,
+                        "Item Type": "SemanticModel",
+                        "Shortcut Name": None,
+                        "Shortcut Path": None,
+                        "Source Type": "Dataset",
+                        "Source Connection": None,
+                        "Source Database": None,
+                        "Connection ID": None,
+                        "Connection Count": len(connections),
+                        "Connections": [c.get("id") for c in connections] if connections else [],
+                        "Full Definition": json.dumps(connections) if connections else None
+                    })
+                    
+            except Exception as e:
+                self.logger.error(f"Error processing Semantic Models in {ws_name}: {e}")
+
+            # --- 5. Dataflows ---
+            try:
+                dataflows = self.get_dataflows(ws_id)
+                if dataflows:
+                    self.logger.info(f"  Found {len(dataflows)} Dataflows")
+
+                for df in dataflows:
+                    lineage_data.append({
+                        "Workspace Name": ws_name,
+                        "Workspace ID": ws_id,
+                        "Item Name": df.get("displayName", "Unknown"),
+                        "Item ID": df["id"],
+                        "Item Type": "Dataflow",
+                        "Shortcut Name": None,
+                        "Shortcut Path": None,
+                        "Source Type": "Dataflow",
+                        "Source Connection": None,
+                        "Source Database": None,
+                        "Connection ID": None,
+                        "Full Definition": None
+                    })
+                    
+            except Exception as e:
+                self.logger.error(f"Error processing Dataflows in {ws_name}: {e}")
+
+            # --- 6. Reports ---
+            try:
+                reports = self.get_reports(ws_id)
+                if reports:
+                    self.logger.info(f"  Found {len(reports)} Reports")
+
+                for report in reports:
+                    lineage_data.append({
+                        "Workspace Name": ws_name,
+                        "Workspace ID": ws_id,
+                        "Item Name": report.get("displayName", "Unknown"),
+                        "Item ID": report["id"],
+                        "Item Type": "Report",
+                        "Shortcut Name": None,
+                        "Shortcut Path": None,
+                        "Source Type": "PowerBI",
+                        "Source Connection": None,
+                        "Source Database": None,
+                        "Connection ID": None,
+                        "Full Definition": None
+                    })
+                    
+            except Exception as e:
+                self.logger.error(f"Error processing Reports in {ws_name}: {e}")
         
         if lineage_data:
             # Output as JSON (preserves structure, no CSV flattening)
@@ -353,6 +513,9 @@ class LineageExtractor:
             mirrored_count = sum(1 for item in lineage_data if item.get('Item Type') == 'MirroredDatabase')
             lakehouse_count = sum(1 for item in lineage_data if item.get('Item Type') == 'Lakehouse Shortcut')
             kql_count = sum(1 for item in lineage_data if item.get('Item Type') == 'KQLDatabase Shortcut')
+            model_count = sum(1 for item in lineage_data if item.get('Item Type') == 'SemanticModel')
+            dataflow_count = sum(1 for item in lineage_data if item.get('Item Type') == 'Dataflow')
+            report_count = sum(1 for item in lineage_data if item.get('Item Type') == 'Report')
             
             # Count source types
             source_types = {}
@@ -367,6 +530,9 @@ class LineageExtractor:
             print(f"Mirrored Databases: {mirrored_count}")
             print(f"Lakehouse Shortcuts: {lakehouse_count}")
             print(f"KQL Shortcuts: {kql_count}")
+            print(f"Semantic Models: {model_count}")
+            print(f"Dataflows: {dataflow_count}")
+            print(f"Reports: {report_count}")
             print("\nTop Source Types:")
             for st, count in sorted(source_types.items(), key=lambda x: -x[1])[:5]:
                 print(f"  {st}: {count}")
