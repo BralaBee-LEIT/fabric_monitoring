@@ -82,8 +82,9 @@ class AdminScannerClient:
         workspace_ids: List[str],
         lineage: bool = True,
         datasource_details: bool = True,
-        dataset_schema: bool = False,
-        dataset_expressions: bool = False,
+        dataset_schema: bool = True,
+        dataset_expressions: bool = True,
+        get_artifact_users: bool = False,
         poll_interval: int = 5,
         max_poll_time: int = 300
     ) -> Dict[str, Any]:
@@ -100,7 +101,8 @@ class AdminScannerClient:
             lineage: Include lineage information (default True)
             datasource_details: Include datasource details (default True)
             dataset_schema: Include dataset schema (default False)
-            dataset_expressions: Include M expressions (default False)
+            dataset_expressions: Include M/DAX expressions (default True)
+            get_artifact_users: Include user permissions (default False)
             poll_interval: Seconds between status polls (default 5)
             max_poll_time: Maximum seconds to wait for scan (default 300)
             
@@ -175,7 +177,13 @@ class AdminScannerClient:
                 time.sleep(poll_interval)
 
         # Step 3: Get results
-        return self._get_scan_result(scan_id)
+        result = self._get_scan_result(scan_id)
+        
+        # Add tables and expressions to result for normalization
+        result["_include_schema"] = dataset_schema
+        result["_include_expressions"] = dataset_expressions
+        
+        return result
 
     def _initiate_scan(
         self,
@@ -322,6 +330,90 @@ class AdminScannerClient:
                     "Source Database": None,
                     "Connection ID": target.get("connectionId"),
                     "Full Definition": str(shortcut)
+                })
+
+        # Process Datasets/Semantic Models for tables and expressions
+        for ws in workspaces:
+            ws_id = ws.get("id")
+            ws_name = ws.get("name", "Unknown")
+            
+            for dataset in ws.get("datasets", []):
+                ds_id = dataset.get("id")
+                ds_name = dataset.get("name", "Unknown")
+                
+                # Basic dataset info
+                lineage_data.append({
+                    "Workspace Name": ws_name,
+                    "Workspace ID": ws_id,
+                    "Item Name": ds_name,
+                    "Item ID": ds_id,
+                    "Item Type": "SemanticModel",
+                    "Shortcut Name": None,
+                    "Shortcut Path": None,
+                    "Source Type": "Dataset",
+                    "Source Connection": None,
+                    "Source Database": None,
+                    "Connection ID": None,
+                    "Table Count": len(dataset.get("tables", [])),
+                    "Expression Count": len(dataset.get("expressions", [])),
+                    "Upstream Datasets": [u.get("targetDatasetId") for u in dataset.get("upstreamDatasets", [])],
+                    "Full Definition": None  # Skip full payload for datasets
+                })
+                
+                # Extract table-level lineage
+                for table in dataset.get("tables", []):
+                    lineage_data.append({
+                        "Workspace Name": ws_name,
+                        "Workspace ID": ws_id,
+                        "Item Name": ds_name,
+                        "Item ID": ds_id,
+                        "Item Type": "DatasetTable",
+                        "Shortcut Name": None,
+                        "Shortcut Path": None,
+                        "Source Type": "Table",
+                        "Source Connection": table.get("source", [{}])[0].get("expression") if table.get("source") else None,
+                        "Source Database": None,
+                        "Connection ID": None,
+                        "Table Name": table.get("name"),
+                        "Column Count": len(table.get("columns", [])),
+                        "Measure Count": len(table.get("measures", [])),
+                        "Full Definition": None
+                    })
+            
+            # Reports with their dataset bindings
+            for report in ws.get("reports", []):
+                lineage_data.append({
+                    "Workspace Name": ws_name,
+                    "Workspace ID": ws_id,
+                    "Item Name": report.get("name", "Unknown"),
+                    "Item ID": report.get("id"),
+                    "Item Type": "Report",
+                    "Shortcut Name": None,
+                    "Shortcut Path": None,
+                    "Source Type": "PowerBI",
+                    "Source Connection": report.get("datasetId"),  # Upstream dataset
+                    "Source Database": None,
+                    "Connection ID": None,
+                    "Bound Dataset ID": report.get("datasetId"),
+                    "Full Definition": None
+                })
+            
+            # Dataflows
+            for dataflow in ws.get("dataflows", []):
+                lineage_data.append({
+                    "Workspace Name": ws_name,
+                    "Workspace ID": ws_id,
+                    "Item Name": dataflow.get("name", "Unknown"),
+                    "Item ID": dataflow.get("objectId"),
+                    "Item Type": "Dataflow",
+                    "Shortcut Name": None,
+                    "Shortcut Path": None,
+                    "Source Type": "Dataflow",
+                    "Source Connection": None,
+                    "Source Database": None,
+                    "Connection ID": None,
+                    "Datasource Count": len(dataflow.get("datasourceUsages", [])),
+                    "Full Definition": None
                 })
 
         return lineage_data
