@@ -624,6 +624,101 @@ curl -s "http://localhost:8000/api/neo4j/path?source_id=abc-123&target_id=xyz-99
 
 ---
 
+## Table Impact Dashboard API (v0.3.27+)
+
+### GET /api/tables/search?q={name}
+Search tables by name with direct consumer counts.
+
+**Response**:
+```json
+{
+  "query": "share_gold",
+  "tables": [
+    {
+      "table_id": "shortcut_...",
+      "table_name": "MDM_GOLD",
+      "schema": null,
+      "database": null,
+      "full_path": "Tables/MDM_GOLD",
+      "consumer_count": 5
+    }
+  ],
+  "count": 12
+}
+```
+
+### GET /api/tables/impact?id={tableId}
+Get table impact analysis (handles IDs with special chars like slashes).
+
+**Response**:
+```json
+{
+  "table": {"id": "...", "name": "MDM_GOLD", "full_path": "Tables/MDM_GOLD"},
+  "direct_consumers": [...],
+  "direct_consumer_count": 5,
+  "downstream_items": [...],
+  "downstream_count": 12,
+  "total_impact": 17
+}
+```
+
+---
+
+## Item Search API (v0.3.28)
+
+### GET /api/items/search?q={name}
+Search for Fabric items (Lakehouses, MirroredDatabases) by name.
+
+```bash
+curl -s "http://localhost:8000/api/items/search?q=share_gold" | jq
+```
+
+**Response**:
+```json
+{
+  "query": "share_gold",
+  "items": [
+    {
+      "item_id": "3742125b-...",
+      "item_name": "SHARE_GOLD",
+      "item_type": "Lakehouse",
+      "workspace": "EDP Lakehouse [DEV]",
+      "table_count": 65
+    }
+  ],
+  "count": 4
+}
+```
+
+### GET /api/items/impact?id={itemId}
+Get item impact analysis showing tables used/provided and downstream deps.
+
+```bash
+curl -s "http://localhost:8000/api/items/impact?id=SHARE_GOLD" | jq
+```
+
+**Response**:
+```json
+{
+  "item": {"id": "...", "name": "SHARE_GOLD", "type": "Lakehouse", "workspace": "EDP Lakehouse [DEV]"},
+  "tables_used": [
+    {"table_id": "...", "table_name": "EDW_DATA/FCT_OPPORTUNITY", "full_path": "...", "relationship": "uses"}
+  ],
+  "tables_used_count": 55,
+  "tables_provided": [
+    {"table_id": "...", "table_name": "PRODUCT", "full_path": "Tables/PRODUCT", "relationship": "provides"}
+  ],
+  "tables_provided_count": 29,
+  "downstream_items": [
+    {"item_id": "...", "item_name": "Sales Report", "item_type": "Report", "workspace": "...", "depth": 1}
+  ],
+  "downstream_count": 31,
+  "total_impact": 115
+}
+```
+
+---
+
 ## Table Lineage Panel (v0.3.25)
 
 The frontend includes an interactive Table Lineage Panel for exploring Fabric items alongside the graph.
@@ -645,4 +740,3 @@ The panel derives data from the graph state (`state.graph.nodes`), including:
 - Fabric items (Lakehouses, Warehouses, Notebooks, Dataflows)
 - External sources (Snowflake, OneLake, ADLS)
 - Shortcuts and mirrored databases
-
