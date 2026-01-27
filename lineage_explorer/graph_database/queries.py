@@ -262,20 +262,54 @@ class LineageQueries:
         Returns:
             List of items using the table
         """
+        # Search both MIRRORS and USES_TABLE relationships
         return self.client.run_query("""
             MATCH (t:Table)
             WHERE toLower(t.name) CONTAINS toLower($table_name)
-            MATCH (i:FabricItem)-[:MIRRORS]->(t)
-            MATCH (w:Workspace)-[:CONTAINS]->(i)
+            // Find items that either MIRROR or USE the table
+            OPTIONAL MATCH (mirror:FabricItem)-[:MIRRORS]->(t)
+            OPTIONAL MATCH (user:FabricItem)-[:USES_TABLE]->(t)
+            // Get workspace for each item type
+            OPTIONAL MATCH (mw:Workspace)-[:CONTAINS]->(mirror)
+            OPTIONAL MATCH (uw:Workspace)-[:CONTAINS]->(user)
+            // Return combined results
+            WITH t, 
+                 CASE WHEN mirror IS NOT NULL THEN {
+                     table_name: t.name,
+                     table_schema: t.schema,
+                     table_database: t.database,
+                     item_id: mirror.id,
+                     item_name: mirror.name,
+                     item_type: mirror.type,
+                     workspace: mw.name,
+                     relationship: 'MIRRORS'
+                 } ELSE NULL END as mirror_result,
+                 CASE WHEN user IS NOT NULL THEN {
+                     table_name: t.name,
+                     table_schema: t.schema,
+                     table_database: t.database,
+                     item_id: user.id,
+                     item_name: user.name,
+                     item_type: user.type,
+                     workspace: uw.name,
+                     relationship: 'USES_TABLE'
+                 } ELSE NULL END as use_result
+            // Collect all results
+            WITH collect(DISTINCT mirror_result) + collect(DISTINCT use_result) as results
+            UNWIND results as r
+            WITH r WHERE r IS NOT NULL
             RETURN 
-                t.name as table_name,
-                t.schema as table_schema,
-                t.database as table_database,
-                i.id as item_id,
-                i.name as item_name,
-                w.name as workspace
-            ORDER BY t.database, t.schema, t.name
+                r.table_name as table_name,
+                r.table_schema as table_schema,
+                r.table_database as table_database,
+                r.item_id as item_id,
+                r.item_name as item_name,
+                r.item_type as item_type,
+                r.workspace as workspace,
+                r.relationship as relationship
+            ORDER BY r.table_database, r.table_schema, r.table_name
         """, {"table_name": table_name})
+
     
     # ==================== DISCOVERY ====================
     
@@ -517,3 +551,257 @@ class LineageQueries:
             "external_sources": sources,
             "item_distribution": item_layers
         }
+    
+    # ==================== TABLE-LEVEL LINEAGE ====================
+    
+    def get_table_lineage(self) -> Dict[str, Any]:
+        """
+        Get comprehensive table-level lineage graph.
+        
+        Returns all tables (from shortcuts and mirrored databases) with their
+        relationships to Fabric items.
+        
+        Returns:
+            Dict with tables, edges, and summary statistics
+        """
+        # Get all tables with their relationships
+        tables = self.client.run_query("""
+            MATCH (t:Table)
+            OPTIONAL MATCH (provider:FabricItem)-[:PROVIDES_TABLE]->(t)
+            OPTIONAL MATCH (consumer:FabricItem)-[:USES_TABLE]->(t)
+            OPTIONAL MATCH (mirror:FabricItem)-[:MIRRORS]->(t)
+            RETURN 
+                t.id as table_id,
+                t.name as table_name,
+                t.full_path as full_path,
+                t.database as database,
+                t.schema as schema,
+                t.table_type as table_type,
+                collect(DISTINCT provider.name) as provided_by,
+                collect(DISTINCT consumer.name) as used_by,
+                collect(DISTINCT mirror.name) as mirrored_by
+            ORDER BY t.name
+        """)
+        
+        # Get table-to-table flow edges (via shortcuts)
+        table_flows = self.client.run_query("""
+            MATCH (source:FabricItem)-[:PROVIDES_TABLE]->(t:Table)<-[:USES_TABLE]-(target:FabricItem)
+            MATCH (sw:Workspace)-[:CONTAINS]->(source)
+            MATCH (tw:Workspace)-[:CONTAINS]->(target)
+            RETURN 
+                t.name as table_name,
+                t.schema as schema,
+                source.name as source_item,
+                sw.name as source_workspace,
+                target.name as target_item,
+                tw.name as target_workspace
+            ORDER BY t.schema, t.name
+        """)
+        
+        # Summary stats
+        stats = self.client.run_query_single("""
+            MATCH (t:Table)
+            WITH count(t) as total_tables
+            OPTIONAL MATCH (t:Table {table_type: 'shortcut'})
+            WITH total_tables, count(t) as shortcut_tables
+            OPTIONAL MATCH (t:Table) WHERE t.database IS NOT NULL
+            RETURN total_tables, shortcut_tables, count(t) as mirrored_tables
+        """) or {}
+        
+        return {
+            "tables": tables,
+            "table_flows": table_flows,
+            "summary": {
+                "total_tables": stats.get("total_tables", 0),
+                "shortcut_tables": stats.get("shortcut_tables", 0),
+                "mirrored_tables": stats.get("mirrored_tables", 0)
+            }
+        }
+    
+    def get_table_dependencies(self, table_name: str) -> Dict[str, Any]:
+        """
+        Get detailed dependencies for a specific table.
+        
+        Args:
+            table_name: Table name (partial match supported)
+            
+        Returns:
+            Dict with upstream and downstream dependencies
+        """
+        result = self.client.run_query("""
+            MATCH (t:Table)
+            WHERE toLower(t.name) CONTAINS toLower($table_name)
+            OPTIONAL MATCH (provider:FabricItem)-[:PROVIDES_TABLE]->(t)
+            OPTIONAL MATCH (consumer:FabricItem)-[:USES_TABLE]->(t)
+            OPTIONAL MATCH (mirror:FabricItem)-[:MIRRORS]->(t)
+            OPTIONAL MATCH (pw:Workspace)-[:CONTAINS]->(provider)
+            OPTIONAL MATCH (cw:Workspace)-[:CONTAINS]->(consumer)
+            OPTIONAL MATCH (mw:Workspace)-[:CONTAINS]->(mirror)
+            RETURN 
+                t.id as table_id,
+                t.name as table_name,
+                t.schema as schema,
+                t.full_path as full_path,
+                t.database as database,
+                t.table_type as table_type,
+                [p IN collect(DISTINCT {name: provider.name, workspace: pw.name, type: provider.type}) WHERE p.name IS NOT NULL] as providers,
+                [c IN collect(DISTINCT {name: consumer.name, workspace: cw.name, type: consumer.type}) WHERE c.name IS NOT NULL] as consumers,
+                [m IN collect(DISTINCT {name: mirror.name, workspace: mw.name, type: mirror.type}) WHERE m.name IS NOT NULL] as mirrors
+        """, {"table_name": table_name})
+        
+        return {
+            "tables": result,
+            "query": table_name
+        }
+
+    def get_table_impact_analysis(
+        self,
+        table_name: str,
+        max_depth: int = 5
+    ) -> Dict[str, Any]:
+        """
+        Get comprehensive impact analysis for a table.
+        
+        This is the key method for Speaker 2's use case:
+        "Search for a table name and see all downstream dependencies"
+        
+        Finds:
+        1. Items that directly MIRROR the table (MirroredDatabases)
+        2. Items that USE_TABLE (via OneLake shortcuts)
+        3. All downstream DEPENDS_ON chains from those items
+        4. Cross-workspace impacts
+        
+        Args:
+            table_name: Table name (partial match supported)
+            max_depth: Maximum traversal depth for dependencies (1-10)
+            
+        Returns:
+            Dict with table info, direct consumers, and full downstream impact
+        """
+        # First, find matching tables
+        tables = self.client.run_query("""
+            MATCH (t:Table)
+            WHERE toLower(t.name) CONTAINS toLower($table_name)
+            RETURN 
+                t.id as table_id,
+                t.name as table_name,
+                t.database as database,
+                t.schema as schema,
+                t.full_path as full_path,
+                t.table_type as table_type
+            ORDER BY t.name
+            LIMIT 20
+        """, {"table_name": table_name})
+        
+        if not tables:
+            return {
+                "query": table_name,
+                "tables_found": 0,
+                "message": f"No tables found matching '{table_name}'"
+            }
+        
+        # For each table, find direct consumers and downstream impact
+        results = []
+        all_impacted_items = set()
+        all_impacted_workspaces = set()
+        
+        for table in tables:
+            table_id = table.get("table_id")
+            
+            # Find items that directly consume this table (MIRRORS or USES_TABLE)
+            direct_consumers = self.client.run_query("""
+                MATCH (t:Table {id: $table_id})
+                OPTIONAL MATCH (mirror:FabricItem)-[:MIRRORS]->(t)
+                OPTIONAL MATCH (mw:Workspace)-[:CONTAINS]->(mirror)
+                OPTIONAL MATCH (user:FabricItem)-[:USES_TABLE]->(t)
+                OPTIONAL MATCH (uw:Workspace)-[:CONTAINS]->(user)
+                WITH t, 
+                     collect(DISTINCT {
+                         item_id: mirror.id,
+                         item_name: mirror.name, 
+                         item_type: mirror.type, 
+                         workspace: mw.name,
+                         relationship: 'MIRRORS'
+                     }) as mirrors,
+                     collect(DISTINCT {
+                         item_id: user.id,
+                         item_name: user.name, 
+                         item_type: user.type, 
+                         workspace: uw.name,
+                         relationship: 'USES_TABLE'
+                     }) as users
+                RETURN mirrors, users
+            """, {"table_id": table_id})
+            
+            # Flatten and filter null items
+            direct = []
+            consumer_ids = []
+            if direct_consumers:
+                for row in direct_consumers:
+                    for m in row.get("mirrors", []):
+                        if m.get("item_name"):
+                            direct.append(m)
+                            consumer_ids.append(m.get("item_id"))
+                            all_impacted_items.add(m.get("item_name"))
+                            if m.get("workspace"):
+                                all_impacted_workspaces.add(m.get("workspace"))
+                    for u in row.get("users", []):
+                        if u.get("item_name"):
+                            direct.append(u)
+                            consumer_ids.append(u.get("item_id"))
+                            all_impacted_items.add(u.get("item_name"))
+                            if u.get("workspace"):
+                                all_impacted_workspaces.add(u.get("workspace"))
+            
+            # Find downstream impact from each direct consumer
+            downstream = []
+            if consumer_ids:
+                for consumer_id in consumer_ids:
+                    if not consumer_id:
+                        continue
+                    downstream_items = self.client.run_query("""
+                        MATCH (start:FabricItem {id: $consumer_id})
+                        OPTIONAL MATCH path = (start)<-[:DEPENDS_ON*1..10]-(downstream:FabricItem)
+                        WHERE length(path) <= $max_depth
+                        OPTIONAL MATCH (dw:Workspace)-[:CONTAINS]->(downstream)
+                        RETURN DISTINCT
+                            downstream.id as item_id,
+                            downstream.name as item_name,
+                            downstream.type as item_type,
+                            dw.name as workspace,
+                            length(path) as depth
+                        ORDER BY depth
+                    """, {"consumer_id": consumer_id, "max_depth": max_depth})
+                    
+                    for d in downstream_items:
+                        if d.get("item_name"):
+                            downstream.append(d)
+                            all_impacted_items.add(d.get("item_name"))
+                            if d.get("workspace"):
+                                all_impacted_workspaces.add(d.get("workspace"))
+            
+            results.append({
+                "table": table,
+                "direct_consumers": direct,
+                "downstream_impact": downstream
+            })
+        
+        # Calculate max depth across all results
+        max_found_depth = 0
+        for r in results:
+            for d in r.get("downstream_impact", []):
+                if d.get("depth", 0) > max_found_depth:
+                    max_found_depth = d.get("depth")
+        
+        return {
+            "query": table_name,
+            "tables_found": len(tables),
+            "results": results,
+            "summary": {
+                "total_impacted_items": len(all_impacted_items),
+                "impacted_workspaces": list(all_impacted_workspaces),
+                "total_impacted_workspaces": len(all_impacted_workspaces),
+                "max_depth_found": max_found_depth
+            }
+        }
+

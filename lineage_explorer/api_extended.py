@@ -429,6 +429,81 @@ async def item_centrality(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ==================== TABLE-LEVEL LINEAGE ENDPOINTS ====================
+
+@extended_router.get("/api/neo4j/table-lineage")
+async def get_table_level_lineage():
+    """
+    Get comprehensive table-level lineage graph.
+    
+    Returns all tables (from OneLake shortcuts and MirroredDatabases) with their
+    relationships to Fabric items, showing which items provide tables and which 
+    consume them.
+    
+    Returns:
+        - tables: List of all tables with providers and consumers
+        - table_flows: Edges showing table data flow between items
+        - summary: Statistics about table coverage
+    """
+    _require_neo4j()
+    
+    try:
+        return _neo4j_queries.get_table_lineage()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@extended_router.get("/api/neo4j/table-deps/{table_name}")
+async def get_table_dependencies(table_name: str):
+    """
+    Get detailed dependencies for a specific table.
+    
+    Args:
+        table_name: Table name (partial match supported)
+        
+    Returns:
+        Dict with table details, providers, and consumers
+    """
+    _require_neo4j()
+    
+    try:
+        return _neo4j_queries.get_table_dependencies(table_name)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@extended_router.get("/api/neo4j/table-impact/{table_name}")
+async def get_table_impact(
+    table_name: str,
+    max_depth: int = Query(default=5, ge=1, le=10, description="Maximum depth for downstream traversal")
+):
+    """
+    Full impact analysis for a table - Speaker 2's use case.
+    
+    Search for a table name (e.g., "CUSTOMER", "fact_lead") and see:
+    1. All items that directly consume the table (MIRRORS, USES_TABLE)
+    2. All downstream dependencies of those items (DEPENDS_ON chains)
+    3. Cross-workspace impact summary
+    
+    This answers the question: "If I change this Snowflake table, 
+    what Fabric items will be affected?"
+    
+    Args:
+        table_name: Table name (partial match supported)
+        max_depth: Maximum traversal depth for downstream impact (1-10)
+        
+    Returns:
+        Complete impact analysis with direct consumers and downstream chain
+    """
+    _require_neo4j()
+    
+    try:
+        return _neo4j_queries.get_table_impact_analysis(table_name, max_depth)
+    except Exception as e:
+        logger.error(f"Table impact analysis failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @extended_router.get("/api/neo4j/items-by-workspace/{workspace_name}")
 async def items_by_workspace(workspace_name: str):
     """

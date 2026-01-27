@@ -361,17 +361,86 @@ Get all items consuming a specific source type.
 ```
 
 ### GET /api/neo4j/table/{table_name}
-Find items that consume a specific table.
+Find items that use a specific table (via MIRRORS or USES_TABLE relationships).
+
+**Parameters**:
+- `table_name` (path): Table name (partial match supported)
+
+**Response**:
+```json
+[
+  {
+    "table_name": "CUSTOMER",
+    "table_schema": "MTINS2",
+    "table_database": "EMEA_DRH_DEV",
+    "item_id": "abc-123",
+    "item_name": "Customer Mirror",
+    "item_type": "MirroredDatabase",
+    "workspace": "EDP Lakehouse [DEV]",
+    "relationship": "MIRRORS"
+  },
+  {
+    "table_name": "CUSTOMER",
+    "table_schema": null,
+    "table_database": null,
+    "item_id": "def-456",
+    "item_name": "SHARE_GOLD",
+    "item_type": "Lakehouse",
+    "workspace": "Data Platform",
+    "relationship": "USES_TABLE"
+  }
+]
+```
+
+### GET /api/neo4j/table-impact/{table_name}
+**NEW** - Get comprehensive impact analysis for a table (Speaker 2's use case).
+
+This endpoint answers: "If I change this Snowflake table, what Fabric items will be affected?"
+
+**Parameters**:
+- `table_name` (path): Table name (partial match supported)
+- `max_depth` (query, optional): Maximum traversal depth for downstream impact (default: 5, max: 10)
 
 **Response**:
 ```json
 {
-  "table": "CUSTOMERS",
-  "database": "EMEA_DRH_DEV",
-  "schema": "MTINS2",
-  "consumers": [
-    {"id": "abc-123", "name": "Customer Mirror", "type": "MirroredDatabase"}
-  ]
+  "query": "ACTIVITY",
+  "tables_found": 20,
+  "results": [
+    {
+      "table": {
+        "table_id": "tbl_emea_drh_dev_mtins2_activity",
+        "table_name": "ACTIVITY",
+        "database": "EMEA_DRH_DEV",
+        "schema": "MTINS2",
+        "full_path": "EMEA_DRH_DEV.MTINS2.ACTIVITY"
+      },
+      "direct_consumers": [
+        {
+          "item_id": "abc-123",
+          "item_name": "SNOWFLAKE_DRH_DEV_MTI_MIRROR",
+          "item_type": "MirroredDatabase",
+          "workspace": "EDP Lakehouse [DEV]",
+          "relationship": "MIRRORS"
+        }
+      ],
+      "downstream_impact": [
+        {
+          "item_id": "def-456",
+          "item_name": "LH Lead Management",
+          "item_type": "Lakehouse",
+          "workspace": "Sales Analytics",
+          "depth": 1
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_impacted_items": 16,
+    "impacted_workspaces": ["EDP Lakehouse [DEV]", "RBS EMEA [DEV]", "..."],
+    "total_impacted_workspaces": 14,
+    "max_depth_found": 2
+  }
 }
 ```
 
