@@ -276,6 +276,11 @@
             color: var(--accent-green);
         }
 
+        .badge-purple {
+            background: rgba(139, 92, 246, 0.1);
+            color: var(--accent-purple);
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -723,8 +728,8 @@
                         <thead>
                             <tr>
                                 <th>Table Name</th>
-                                <th>Schema</th>
-                                <th>Database</th>
+                                <th>Location</th>
+                                <th>Source</th>
                                 <th class="text-right">Consumers</th>
                             </tr>
                         </thead>
@@ -903,16 +908,34 @@
 
         // Render tables results
         function renderTablesResults(tables) {
-            tablesBody.innerHTML = tables.map(table => `
+            tablesBody.innerHTML = tables.map(table => {
+                // Determine source type and location display
+                const isSnowflake = table.database && table.database !== 'null';
+                const sourceType = isSnowflake ? 'Snowflake' : 'Lakehouse';
+                const sourceBadgeClass = isSnowflake ? 'badge-purple' : 'badge-green';
+
+                // Build location string
+                let location = '';
+                if (isSnowflake) {
+                    location = `${table.database}.${table.schema || 'dbo'}`;
+                } else if (table.full_path) {
+                    // Parse Lakehouse path (e.g., "Tables/FOO" -> "Tables/")
+                    const parts = table.full_path.split('/');
+                    location = parts.length > 1 ? parts.slice(0, -1).join('/') + '/' : 'Tables/';
+                } else {
+                    location = 'Tables/';
+                }
+
+                return `
                 <tr class="clickable ${selectedTableId === table.table_id ? 'selected' : ''}" 
                     data-table-id="${table.table_id}"
                     data-table-name="${escapeHtml(table.table_name)}">
                     <td class="table-name">${escapeHtml(table.table_name)}</td>
-                    <td>${escapeHtml(table.schema || 'dbo')}</td>
-                    <td>${escapeHtml(table.database || '-')}</td>
+                    <td title="${escapeHtml(table.full_path || '')}">${escapeHtml(location)}</td>
+                    <td><span class="badge ${sourceBadgeClass}" style="font-size: 10px;">${sourceType}</span></td>
                     <td class="text-right">${table.consumer_count}</td>
-                </tr>
-            `).join('');
+                </tr>`;
+            }).join('');
 
             // Add click handlers
             tablesBody.querySelectorAll('tr.clickable').forEach(row => {
@@ -990,6 +1013,21 @@
 
             let html = '<div class="impact-tree">';
 
+            // Determine source type
+            const isSnowflake = table.database && table.database !== 'null';
+            const sourceType = isSnowflake ? 'Snowflake' : 'Lakehouse';
+            const sourceBadge = isSnowflake
+                ? '<span class="badge badge-purple" style="font-size: 10px; margin-left: 8px;">Snowflake</span>'
+                : '<span class="badge badge-green" style="font-size: 10px; margin-left: 8px;">Lakehouse</span>';
+
+            // Build location display
+            let locationDisplay = '';
+            if (isSnowflake) {
+                locationDisplay = `${table.database}.${table.schema || 'dbo'}`;
+            } else if (table.full_path) {
+                locationDisplay = table.full_path;
+            }
+
             // Root: Table node with expand all button
             html += `
                 <div class="tree-controls" style="margin-bottom: 12px; display: flex; gap: 8px;">
@@ -1007,7 +1045,8 @@
                         </svg>
                         <span class="node-name">${escapeHtml(table.name)}</span>
                         <span class="node-type">Source Table</span>
-                        <span class="node-workspace">${escapeHtml(table.database || '')}${table.database && table.schema ? ' • ' : ''}${escapeHtml(table.schema || '')}</span>
+                        ${sourceBadge}
+                        <span class="node-workspace">${escapeHtml(locationDisplay)}</span>
                     </div>
                 </div>
             `;
