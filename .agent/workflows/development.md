@@ -131,6 +131,11 @@ make lineage-full
    make lineage-explorer
    ```
 
+> [!IMPORTANT]
+> **Restart the server after code changes!** The Lineage Explorer server does not auto-reload.
+> If you modify `server.py`, `api_extended.py`, or add new routes, you must restart the server.
+> Kill the running server (Ctrl+C or `pkill -f run_lineage_explorer`) and start again.
+
 ### Table Lineage Panel (v0.3.25)
 
 The explorer includes a Table Lineage Panel for filtering items:
@@ -138,6 +143,17 @@ The explorer includes a Table Lineage Panel for filtering items:
 - **Filter by Node**: Click a graph node → panel filters to related items
 - **Search**: Type to filter by name/database/path
 - **Clear Filter**: Click X in the filter indicator bar
+
+### Table Impact Dashboard (v0.3.27)
+
+Access at `/table_impact.html` for downstream impact analysis:
+- **Search Tables**: Type table name (min 2 chars, live search)
+- **View Impact**: Click table to see downstream dependencies as tree
+- **Keyboard Nav**: ↑/↓ to navigate, Enter to select
+- **Export CSV**: Download impact analysis results
+
+> [!NOTE]
+> Requires **Neo4j** to be running (`docker-compose up -d`)
 
 ### Extraction Modes
 

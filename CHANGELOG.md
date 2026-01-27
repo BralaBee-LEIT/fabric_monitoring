@@ -24,9 +24,28 @@ All notable changes to this project will be documented in this file.
   - Path tracking through dependency chains
   - Direct consumer vs downstream separation
 
+### Enhanced
+- **Table Impact Dashboard UX**:
+  - Debounced live search (auto-search after 300ms, min 2 chars)
+  - Keyboard navigation (↑/↓ arrows, Enter to select)
+  - Collapsible tree nodes with Expand/Collapse All buttons
+  - Search result caching for faster repeated queries
+  - Improved error handling with detailed messages
+  - Proper CSV escaping (handles commas, quotes, newlines)
+  - Additional item type icons (Dataflow, Warehouse)
+  - Friendly type formatting (SemanticModel → Semantic Model)
+
+### Fixed
+- Added explicit `/table_impact.html` route to `server.py`
+- API now accepts table name OR table ID for lookup
+
 ### Changed
 - **Dashboard Navigation** (`dashboard.html`):
   - Added "Table Impact" link to navigation bar
+
+### Important Notes
+> **Server Restart Required**: After modifying `server.py` or `api_extended.py`, 
+> the Lineage Explorer server must be restarted to load new routes.
 
 ---
 
