@@ -144,13 +144,27 @@ The explorer includes a Table Lineage Panel for filtering items:
 - **Search**: Type to filter by name/database/path
 - **Clear Filter**: Click X in the filter indicator bar
 
-### Table Impact Dashboard (v0.3.27)
+### Table Impact Dashboard (v0.3.28)
 
 Access at `/table_impact.html` for downstream impact analysis:
-- **Search Tables**: Type table name (min 2 chars, live search)
-- **View Impact**: Click table to see downstream dependencies as tree
-- **Keyboard Nav**: ↑/↓ to navigate, Enter to select
-- **Export CSV**: Download impact analysis results
+
+**Dual Search Mode:**
+- **Tables** (default): Search for source tables to see downstream impact
+- **Items**: Search for Lakehouses/MirroredDBs to see their tables
+
+**Table Search:**
+- Type table name (min 2 chars, live search)
+- Click table to see downstream dependencies as tree
+- Source badges: 🟢 Lakehouse | 🟣 Snowflake
+
+**Item Search (New in v0.3.28):**
+- Switch to "Items" mode via radio button
+- Search for Lakehouses like "SHARE_GOLD"
+- Impact shows: Tables Used, Tables Provided, Downstream Items
+
+**Controls:**
+- Keyboard Nav: ↑/↓ to navigate, Enter to select
+- Export CSV: Download impact analysis results
 
 > [!NOTE]
 > Requires **Neo4j** to be running (`docker-compose up -d`)

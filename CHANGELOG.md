@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.28 (January 2026) - Item (Lakehouse) Search Enhancement
+
+### Added
+- **Dual Search Mode**: Search for Tables OR Items (Lakehouses/MirroredDBs)
+  - Radio button toggle to switch between search modes
+  - Searching "share_gold" now finds SHARE_GOLD Lakehouse items
+  
+- **Item Impact Analysis**:
+  - `GET /api/items/search?q={name}` - Search Fabric items by name
+  - `GET /api/items/impact?id={id}` - Full item impact analysis
+  - Visualization shows:
+    - **Tables Used**: Tables the Lakehouse consumes (via USES_TABLE)
+    - **Tables Provided**: Tables the Lakehouse hosts (via PROVIDES_TABLE)
+    - **Downstream Items**: Items that depend on this Lakehouse
+
+### Fixed
+- **Table IDs with Slashes**: Query-based API endpoint handles special characters
+  - New endpoint: `GET /api/tables/impact?id={tableId}` (preferred)
+  - Fixes 404 errors for tables like `ENR_SNOW_SERV/RBS_SHARED_SERVICES`
+
+### Enhanced
+- **Search Type Toggle**: Automatic re-search when mode changes
+- **Item Results Display**: Shows workspace, type badge, table count
+- **Keyboard Navigation**: Works for both Tables and Items
+
+---
+
 ## 0.3.27 (January 2026) - Table-Level Impact Analysis Dashboard
 
 ### Added
