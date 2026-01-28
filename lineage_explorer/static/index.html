@@ -2026,11 +2026,13 @@
 
                 // Filter tables to those connected to visible items
                 const visibleItemIds = new Set(state.filteredGraph.nodes.map(n => n.id));
-                const relevantEdges = state.tableLayerData.table_edges.filter(e => visibleItemIds.has(e.source));
+                const relevantEdges = state.tableLayerData.table_edges.filter(e =>
+                    visibleItemIds.has(e.source) && itemPositions.has(e.source)
+                );
 
                 // Build table positions (offset from parent item)
                 const tablePositions = new Map();
-                const tableConnections = new Map(); // table_id -> [item positions]
+                const tableConnections = new Map(); // table_id -> [{itemId, pos}]
 
                 relevantEdges.forEach(edge => {
                     const itemPos = itemPositions.get(edge.source);
@@ -2038,17 +2040,27 @@
                         if (!tableConnections.has(edge.target)) {
                             tableConnections.set(edge.target, []);
                         }
-                        tableConnections.get(edge.target).push(itemPos);
+                        tableConnections.get(edge.target).push({ itemId: edge.source, pos: itemPos });
                     }
                 });
 
-                // Calculate table positions (average of connected item positions with offset)
-                tableConnections.forEach((positions, tableId) => {
-                    const avgX = positions.reduce((sum, p) => sum + p.x, 0) / positions.length;
-                    const avgY = positions.reduce((sum, p) => sum + p.y, 0) / positions.length;
-                    // Offset slightly to avoid overlap
-                    const angle = Math.random() * Math.PI * 2;
-                    const offset = 40;
+                // Simple hash function for deterministic offset angle
+                const hashString = (str) => {
+                    let hash = 0;
+                    for (let i = 0; i < str.length; i++) {
+                        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                        hash |= 0;
+                    }
+                    return hash;
+                };
+
+                // Calculate table positions (average of connected item positions with deterministic offset)
+                tableConnections.forEach((connections, tableId) => {
+                    const avgX = connections.reduce((sum, c) => sum + c.pos.x, 0) / connections.length;
+                    const avgY = connections.reduce((sum, c) => sum + c.pos.y, 0) / connections.length;
+                    // Use deterministic angle based on table ID for consistent positioning
+                    const angle = (hashString(tableId) % 360) * (Math.PI / 180);
+                    const offset = 35 + (connections.length * 3); // Slightly larger offset for tables with more connections
                     tablePositions.set(tableId, {
                         x: avgX + Math.cos(angle) * offset,
                         y: avgY + Math.sin(angle) * offset
@@ -2059,15 +2071,20 @@
                 const visibleTableIds = new Set(tablePositions.keys());
                 const visibleTables = state.tableLayerData.tables.filter(t => visibleTableIds.has(t.id));
 
+                // Only draw edges where BOTH endpoints have valid positions
+                const validEdges = relevantEdges.filter(e =>
+                    itemPositions.has(e.source) && tablePositions.has(e.target)
+                );
+
                 // Draw table links first
                 tableLayer.selectAll('.table-link')
-                    .data(relevantEdges.filter(e => tablePositions.has(e.target)))
+                    .data(validEdges)
                     .join('line')
                     .attr('class', 'table-link')
-                    .attr('x1', d => itemPositions.get(d.source)?.x || 0)
-                    .attr('y1', d => itemPositions.get(d.source)?.y || 0)
-                    .attr('x2', d => tablePositions.get(d.target)?.x || 0)
-                    .attr('y2', d => tablePositions.get(d.target)?.y || 0);
+                    .attr('x1', d => itemPositions.get(d.source).x)
+                    .attr('y1', d => itemPositions.get(d.source).y)
+                    .attr('x2', d => tablePositions.get(d.target).x)
+                    .attr('y2', d => tablePositions.get(d.target).y);
 
                 // Draw table nodes (diamond shapes)
                 const tableNodes = tableLayer.selectAll('.table-node')
