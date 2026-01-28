@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.29 (January 2026) - Table Impact Graph Revamp
+
+### Added
+- **Table Layer Toggle** in Main Graph Explorer:
+  - Diamond-shaped table nodes overlaid on the force-directed graph
+  - Toggle button in toolbar to show/hide table layer
+  - Color-coded by source: Lakehouse (green), Snowflake (purple)
+  - Click table node to open Table Impact Dashboard
+  - Dashed edges show item-to-table relationships
+
+- **New API Endpoints** (`lineage_explorer/api_extended.py`):
+  - `GET /api/tables/overview` - Aggregated table statistics with pattern analysis
+  - `GET /api/items/{item_id}/table-footprint` - Compact table footprint for tooltips
+  - `GET /api/graph/with-tables` - Full graph data with table layer for visualization
+
+- **Table Pattern Detection**:
+  - **Orphan Tables**: Tables with no consumers (data quality issue)
+  - **High-Dependency Tables**: Tables with 5+ consumers (high impact if changed)
+  - **Cross-Workspace Tables**: Tables used across multiple workspaces
+
+### Enhanced
+- **State Management**: Added `tableLayerEnabled` and `tableLayerData` properties
+- **CSS Styling**: Table layer nodes with diamond shapes and color-coded source types
+
+---
+
 ## 0.3.28 (January 2026) - Item (Lakehouse) Search Enhancement
 
 ### Added

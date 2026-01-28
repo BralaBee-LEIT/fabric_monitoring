@@ -1039,6 +1039,53 @@
             opacity: 0.8;
         }
 
+        /* Table Layer Nodes */
+        .table-node {
+            cursor: pointer;
+        }
+
+        .table-node .table-shape {
+            stroke: #fff;
+            stroke-width: 1.5;
+        }
+
+        .table-node.lakehouse .table-shape {
+            fill: var(--accent-green);
+        }
+
+        .table-node.snowflake .table-shape {
+            fill: var(--accent-purple);
+        }
+
+        .table-node text {
+            font-size: 8px;
+            fill: var(--text-secondary);
+            pointer-events: none;
+        }
+
+        .table-node.dimmed {
+            opacity: 0.1;
+        }
+
+        /* Table Layer edges */
+        .table-link {
+            stroke: var(--text-muted);
+            stroke-width: 1;
+            stroke-dasharray: 4, 2;
+            opacity: 0.4;
+        }
+
+        .table-link.dimmed {
+            opacity: 0.05;
+        }
+
+        /* Table Layer Toggle button active state */
+        #btn-toggle-table-layer.active {
+            background: var(--accent-green);
+            color: white;
+            border-color: var(--accent-green);
+        }
+
         /* Path Finder Panel */
         .path-finder-panel {
             position: absolute;
@@ -1551,6 +1598,12 @@
                                 <line x1="9" y1="21" x2="9" y2="9" />
                             </svg>
                         </button>
+                        <button class="btn btn-icon" id="btn-toggle-table-layer" title="Toggle Table Layer on Graph">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L22 12L12 22L2 12Z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="toolbar-group" id="selection-tools" style="display: none;">
                         <span id="selection-count"
@@ -1806,7 +1859,9 @@
                 pathSource: null,
                 pathTarget: null,
                 currentPath: []
-            }
+            },
+            tableLayerEnabled: false,
+            tableLayerData: null
         };
 
         // =============================================================================
@@ -1898,6 +1953,175 @@
                 const r = await fetch(`${this.baseUrl}/path?source_id=${fromId}&target_id=${toId}`);
                 if (!r.ok) throw new Error('Failed');
                 return r.json();
+            }
+        };
+
+        // =============================================================================
+        // Table Layer Module
+        // =============================================================================
+
+        const TableLayer = {
+            async fetch() {
+                try {
+                    const response = await fetch('/api/graph/with-tables');
+                    if (!response.ok) throw new Error('Failed to fetch table layer');
+                    state.tableLayerData = await response.json();
+                    return state.tableLayerData;
+                } catch (e) {
+                    console.error('TableLayer fetch failed:', e);
+                    return null;
+                }
+            },
+
+            async toggle() {
+                state.tableLayerEnabled = !state.tableLayerEnabled;
+                document.getElementById('btn-toggle-table-layer')?.classList.toggle('active', state.tableLayerEnabled);
+
+                if (state.tableLayerEnabled) {
+                    try {
+                        // Show loading overlay if available
+                        if (typeof Loading !== 'undefined') Loading.show('Loading table layer...');
+                    } catch (e) { /* Loading not yet defined */ }
+
+                    if (!state.tableLayerData) {
+                        await this.fetch();
+                    }
+                    this.render();
+
+                    try {
+                        if (typeof Loading !== 'undefined') Loading.hide();
+                        if (typeof Toast !== 'undefined') Toast.show(`Table layer: ${state.tableLayerData?.tables_count || 0} tables`, 'success');
+                    } catch (e) { console.log('Table layer enabled'); }
+                } else {
+                    this.hide();
+                    try {
+                        if (typeof Toast !== 'undefined') Toast.show('Table layer hidden', 'info');
+                    } catch (e) { console.log('Table layer hidden'); }
+                }
+            },
+
+            render() {
+                if (!state.tableLayerData || !state.svg || !state.filteredGraph) return;
+
+                const mainGroup = state.svg.select('g.main');
+                if (mainGroup.empty()) {
+                    console.warn('TableLayer: main group not found');
+                    return;
+                }
+
+                // Remove any existing table layer
+                mainGroup.selectAll('.table-layer').remove();
+
+                // Create table layer group (insert before nodes group)
+                const tableLayer = mainGroup.insert('g', '.nodes')
+                    .attr('class', 'table-layer');
+
+                // Build a map of item positions
+                const itemPositions = new Map();
+                state.filteredGraph.nodes.forEach(n => {
+                    if (n.x !== undefined && n.y !== undefined) {
+                        itemPositions.set(n.id, { x: n.x, y: n.y });
+                    }
+                });
+
+                // Filter tables to those connected to visible items
+                const visibleItemIds = new Set(state.filteredGraph.nodes.map(n => n.id));
+                const relevantEdges = state.tableLayerData.table_edges.filter(e => visibleItemIds.has(e.source));
+
+                // Build table positions (offset from parent item)
+                const tablePositions = new Map();
+                const tableConnections = new Map(); // table_id -> [item positions]
+
+                relevantEdges.forEach(edge => {
+                    const itemPos = itemPositions.get(edge.source);
+                    if (itemPos) {
+                        if (!tableConnections.has(edge.target)) {
+                            tableConnections.set(edge.target, []);
+                        }
+                        tableConnections.get(edge.target).push(itemPos);
+                    }
+                });
+
+                // Calculate table positions (average of connected item positions with offset)
+                tableConnections.forEach((positions, tableId) => {
+                    const avgX = positions.reduce((sum, p) => sum + p.x, 0) / positions.length;
+                    const avgY = positions.reduce((sum, p) => sum + p.y, 0) / positions.length;
+                    // Offset slightly to avoid overlap
+                    const angle = Math.random() * Math.PI * 2;
+                    const offset = 40;
+                    tablePositions.set(tableId, {
+                        x: avgX + Math.cos(angle) * offset,
+                        y: avgY + Math.sin(angle) * offset
+                    });
+                });
+
+                // Get table data for visible tables
+                const visibleTableIds = new Set(tablePositions.keys());
+                const visibleTables = state.tableLayerData.tables.filter(t => visibleTableIds.has(t.id));
+
+                // Draw table links first
+                tableLayer.selectAll('.table-link')
+                    .data(relevantEdges.filter(e => tablePositions.has(e.target)))
+                    .join('line')
+                    .attr('class', 'table-link')
+                    .attr('x1', d => itemPositions.get(d.source)?.x || 0)
+                    .attr('y1', d => itemPositions.get(d.source)?.y || 0)
+                    .attr('x2', d => tablePositions.get(d.target)?.x || 0)
+                    .attr('y2', d => tablePositions.get(d.target)?.y || 0);
+
+                // Draw table nodes (diamond shapes)
+                const tableNodes = tableLayer.selectAll('.table-node')
+                    .data(visibleTables)
+                    .join('g')
+                    .attr('class', d => `table-node ${d.database ? 'snowflake' : 'lakehouse'}`)
+                    .attr('transform', d => {
+                        const pos = tablePositions.get(d.id);
+                        return `translate(${pos?.x || 0},${pos?.y || 0})`;
+                    });
+
+                // Diamond path (rotated square)
+                const size = 6;
+                tableNodes.append('path')
+                    .attr('class', 'table-shape')
+                    .attr('d', `M0,${-size} L${size},0 L0,${size} L${-size},0 Z`);
+
+                // Table label (hidden by default, show on hover)
+                tableNodes.append('text')
+                    .attr('dy', size + 10)
+                    .attr('text-anchor', 'middle')
+                    .text(d => truncate(d.label, 12))
+                    .style('opacity', 0);
+
+                // Hover effects
+                tableNodes
+                    .on('mouseenter', function (event, d) {
+                        d3.select(this).select('text').style('opacity', 1);
+                        Tooltip.show(event, {
+                            label: d.label,
+                            type: 'table',
+                            itemType: d.database ? 'Snowflake' : 'Lakehouse',
+                            sourceType: `${d.consumer_count} consumers`
+                        });
+                    })
+                    .on('mouseleave', function () {
+                        d3.select(this).select('text').style('opacity', 0);
+                        Tooltip.hide();
+                    })
+                    .on('click', (event, d) => {
+                        // Navigate to Table Impact page
+                        const tableId = encodeURIComponent(d.id);
+                        window.open(`/table_impact.html?table=${tableId}`, '_blank');
+                    });
+            },
+
+            hide() {
+                state.svg?.selectAll('.table-layer').remove();
+            },
+
+            // Update positions when simulation ticks
+            update() {
+                if (!state.tableLayerEnabled) return;
+                this.render();
             }
         };
 
@@ -2867,6 +3091,8 @@
                     document.getElementById('btn-toggle-labels')?.classList.toggle('active', state.labelsVisible);
                     state.svg.selectAll('.node').classed('labels-hidden', !state.labelsVisible);
                 });
+
+                document.getElementById('btn-toggle-table-layer')?.addEventListener('click', () => TableLayer.toggle());
 
                 document.getElementById('btn-refresh')?.addEventListener('click', () => App.refresh());
 

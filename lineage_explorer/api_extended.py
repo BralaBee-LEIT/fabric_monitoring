@@ -1225,3 +1225,204 @@ async def list_tables(
     except Exception as e:
         logger.error(f"List tables failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== TABLE OVERVIEW & PATTERNS ENDPOINTS ====================
+
+@extended_router.get("/api/tables/overview")
+async def get_tables_overview():
+    """
+    Get aggregated table statistics for dashboard visualization.
+    
+    Returns comprehensive stats including:
+    - Total tables by source type (Lakehouse vs Snowflake)
+    - Relationship distribution (USES_TABLE, PROVIDES_TABLE, MIRRORS)
+    - Orphan tables (tables with no consumers)
+    - High-dependency tables (tables with many consumers)
+    """
+    _require_neo4j()
+    
+    try:
+        # Get total tables by source type
+        source_query = """
+        MATCH (t:Table)
+        OPTIONAL MATCH (lh:FabricItem)-[:PROVIDES_TABLE]->(t)
+        WHERE lh.type IN ['Lakehouse', 'MirroredDatabase']
+        WITH t, 
+             CASE WHEN lh.type = 'Lakehouse' THEN 'Lakehouse'
+                  WHEN lh.type = 'MirroredDatabase' THEN 'Snowflake'
+                  WHEN t.database IS NOT NULL THEN 'Snowflake'
+                  ELSE 'Unknown' END as source_type
+        RETURN source_type, count(t) as count
+        """
+        source_results = _neo4j_client.run_query(source_query, {})
+        by_source = {r["source_type"]: r["count"] for r in source_results}
+        
+        # Get relationship counts
+        rel_query = """
+        MATCH ()-[r:USES_TABLE|PROVIDES_TABLE|MIRRORS]->()
+        RETURN type(r) as rel_type, count(r) as count
+        """
+        rel_results = _neo4j_client.run_query(rel_query, {})
+        relationship_counts = {r["rel_type"]: r["count"] for r in rel_results}
+        
+        # Get orphan tables (no consumers)
+        orphan_query = """
+        MATCH (t:Table)
+        WHERE NOT EXISTS { MATCH (t)<-[:MIRRORS|USES_TABLE]-() }
+        RETURN t.id as table_id, t.name as table_name, 
+               t.database as database, t.schema as schema
+        ORDER BY t.name
+        LIMIT 50
+        """
+        orphan_tables = _neo4j_client.run_query(orphan_query, {})
+        
+        # Get high-dependency tables (5+ consumers)
+        high_dep_query = """
+        MATCH (t:Table)
+        OPTIONAL MATCH (t)<-[:MIRRORS|USES_TABLE]-(consumer:FabricItem)
+        WITH t, count(DISTINCT consumer) as consumer_count
+        WHERE consumer_count >= 5
+        RETURN t.id as table_id, t.name as table_name, 
+               t.database as database, consumer_count
+        ORDER BY consumer_count DESC
+        LIMIT 50
+        """
+        high_dep_tables = _neo4j_client.run_query(high_dep_query, {})
+        
+        # Get cross-workspace tables
+        cross_ws_query = """
+        MATCH (t:Table)<-[:MIRRORS|USES_TABLE]-(item:FabricItem)<-[:CONTAINS]-(w:Workspace)
+        WITH t, collect(DISTINCT w.name) as workspaces, count(DISTINCT w) as ws_count
+        WHERE ws_count >= 2
+        RETURN t.id as table_id, t.name as table_name, 
+               workspaces, ws_count as workspace_count
+        ORDER BY ws_count DESC
+        LIMIT 30
+        """
+        cross_ws_tables = _neo4j_client.run_query(cross_ws_query, {})
+        
+        total_tables = sum(by_source.values())
+        
+        return {
+            "total_tables": total_tables,
+            "by_source": by_source,
+            "relationship_counts": relationship_counts,
+            "patterns": {
+                "orphan_tables": {
+                    "count": len(orphan_tables),
+                    "description": "Tables with no consumers",
+                    "tables": orphan_tables
+                },
+                "high_dependency_tables": {
+                    "count": len(high_dep_tables),
+                    "description": "Tables with 5+ consumers",
+                    "tables": high_dep_tables
+                },
+                "cross_workspace_tables": {
+                    "count": len(cross_ws_tables),
+                    "description": "Tables used across workspaces",
+                    "tables": cross_ws_tables
+                }
+            }
+        }
+    except Exception as e:
+        logger.error(f"Tables overview failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@extended_router.get("/api/items/{item_id}/table-footprint")
+async def get_item_table_footprint(item_id: str):
+    """
+    Get compact table footprint for a Fabric item.
+    Used by main graph explorer for tooltips and detail panels.
+    """
+    _require_neo4j()
+    
+    try:
+        query = """
+        MATCH (item:FabricItem {id: $item_id})
+        OPTIONAL MATCH (item)-[:USES_TABLE]->(used:Table)
+        WITH item, collect(DISTINCT used.name)[0..10] as sample_used, count(DISTINCT used) as used_count
+        OPTIONAL MATCH (item)-[:PROVIDES_TABLE]->(provided:Table)
+        RETURN item.id as item_id, item.name as item_name, item.type as item_type,
+               used_count as tables_used_count, sample_used as sample_tables_used,
+               count(DISTINCT provided) as tables_provided_count,
+               collect(DISTINCT provided.name)[0..10] as sample_tables_provided
+        """
+        results = _neo4j_client.run_query(query, {"item_id": item_id})
+        
+        if not results:
+            raise HTTPException(status_code=404, detail=f"Item not found: {item_id}")
+        
+        result = results[0]
+        return {
+            "item_id": result["item_id"],
+            "item_name": result["item_name"],
+            "item_type": result["item_type"],
+            "tables_used_count": result["tables_used_count"],
+            "tables_provided_count": result["tables_provided_count"],
+            "total_table_footprint": result["tables_used_count"] + result["tables_provided_count"],
+            "sample_tables_used": result["sample_tables_used"],
+            "sample_tables_provided": result["sample_tables_provided"]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Item table footprint failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@extended_router.get("/api/graph/with-tables")
+async def get_graph_with_table_layer():
+    """
+    Get graph data with table layer for visualization.
+    Used by the Table Layer Toggle feature.
+    """
+    _require_neo4j()
+    
+    try:
+        # Get fabric items with table footprints
+        items_query = """
+        MATCH (item:FabricItem)
+        OPTIONAL MATCH (w:Workspace)-[:CONTAINS]->(item)
+        OPTIONAL MATCH (item)-[:USES_TABLE|PROVIDES_TABLE]->(t:Table)
+        WITH item, w, collect(DISTINCT t.id) as table_ids, count(DISTINCT t) as table_count
+        RETURN item.id as id, item.name as label, 'item' as type,
+               item.type as itemType, w.name as workspace, table_ids, table_count
+        """
+        items = _neo4j_client.run_query(items_query, {})
+        
+        # Get tables with consumer info
+        tables_query = """
+        MATCH (t:Table)
+        OPTIONAL MATCH (t)<-[r:MIRRORS|USES_TABLE|PROVIDES_TABLE]-(item:FabricItem)
+        WITH t, collect(DISTINCT {id: item.id, rel: type(r)}) as consumers
+        RETURN t.id as id, t.name as label, 'table' as type,
+               t.database as database, t.schema as schema,
+               consumers, size(consumers) as consumer_count
+        """
+        tables = _neo4j_client.run_query(tables_query, {})
+        
+        # Build table layer edges
+        table_edges = []
+        for item in items:
+            for table_id in item.get("table_ids", []):
+                table_edges.append({
+                    "source": item["id"],
+                    "target": table_id,
+                    "type": "TABLE_LINK"
+                })
+        
+        return {
+            "items": items,
+            "items_count": len(items),
+            "tables": tables,
+            "tables_count": len(tables),
+            "table_edges": table_edges,
+            "table_edges_count": len(table_edges)
+        }
+    except Exception as e:
+        logger.error(f"Graph with tables failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
