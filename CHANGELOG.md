@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.30 (January 2026) - Enhanced Lineage Data Loading (Opt-In)
+
+### Added
+- **Opt-In Enhanced Item Loading** (`/api/neo4j/load?include_all_items=true`):
+  - New query parameter `include_all_items` (default: `false`) for loading ALL extracted items
+  - When enabled, creates `READS_FROM` edges linking Reports to their source SemanticModels
+  - Addresses ingestion gap: 2,427 items extracted vs ~200 items loaded (with default)
+  - **Backward compatible**: Default behavior unchanged; this is purely opt-in
+
+### Technical Details
+- Added `CREATE_READS_FROM_EDGE` Cypher query to `data_loader.py`
+- Reports with `PowerBI` source type are linked to their dataset (SemanticModel) via `Connection ID`
+- 811 Report→SemanticModel edges available when opt-in enabled
+
+### Usage
+```bash
+# Default (unchanged behavior)
+curl -X POST "http://localhost:8000/api/neo4j/load?clear_existing=true"
+
+# Opt-in for enhanced loading
+curl -X POST "http://localhost:8000/api/neo4j/load?clear_existing=true&include_all_items=true"
+```
+
+---
+
 ## 0.3.29 (January 2026) - Table Impact Graph Revamp
 
 ### Added

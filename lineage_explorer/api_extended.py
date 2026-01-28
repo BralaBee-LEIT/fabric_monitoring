@@ -773,7 +773,8 @@ async def run_custom_query(
 
 @extended_router.post("/api/neo4j/load")
 async def load_data_to_neo4j(
-    clear_existing: bool = Query(default=False, description="Clear existing data before loading")
+    clear_existing: bool = Query(default=False, description="Clear existing data before loading"),
+    include_all_items: bool = Query(default=False, description="Include all extracted items (SemanticModels, Reports, Dataflows) - opt-in feature")
 ):
     """
     Load lineage data into Neo4j.
@@ -782,6 +783,7 @@ async def load_data_to_neo4j(
     
     Args:
         clear_existing: If True, clear database before loading
+        include_all_items: If True, load ALL extracted items including SemanticModels, Reports, Dataflows (opt-in)
     """
     _require_neo4j()
     
@@ -797,7 +799,7 @@ async def load_data_to_neo4j(
             _neo4j_client.clear_database()
             loader.setup_schema()
         
-        summary = loader._load_lineage_records(_stats_calculator._data)
+        summary = loader._load_lineage_records(_stats_calculator._data, include_all_items=include_all_items)
         return {"status": "loaded", "summary": summary}
     except Exception as e:
         logger.error(f"Error loading to Neo4j: {e}", exc_info=True)

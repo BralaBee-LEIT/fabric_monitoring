@@ -159,6 +159,14 @@ class LineageDataLoader:
     MERGE (source)-[r:PROVIDES_TABLE]->(table)
     """
     
+    # NEW (opt-in): Report -> SemanticModel edges via PowerBI/Dataset source types
+    CREATE_READS_FROM_EDGE = """
+    UNWIND $batch AS row
+    MATCH (report:FabricItem {id: row.report_id})
+    MATCH (dataset:FabricItem {id: row.dataset_id})
+    MERGE (report)-[r:READS_FROM]->(dataset)
+    """
+    
     def __init__(self, client: Neo4jClient):
         """
         Initialize data loader.
@@ -259,12 +267,13 @@ class LineageDataLoader:
         
         return self._load_lineage_records(lineage_items)
     
-    def _load_lineage_records(self, lineage_items: List[Dict]) -> Dict[str, Any]:
+    def _load_lineage_records(self, lineage_items: List[Dict], include_all_items: bool = False) -> Dict[str, Any]:
         """
         Process and load lineage records into Neo4j.
         
         Args:
             lineage_items: List of lineage records
+            include_all_items: If True, load ALL items including SemanticModels, Reports, Dataflows (opt-in)
             
         Returns:
             Summary of loaded data
@@ -293,6 +302,7 @@ class LineageDataLoader:
         external_edges = []
         mirror_edges = []
         shortcut_table_edges = []  # NEW: Edges linking items to shortcut tables
+        reads_from_edges = []  # NEW: Report -> SemanticModel edges (opt-in)
         
         known_item_ids = set()
         
@@ -415,6 +425,16 @@ class LineageDataLoader:
                     self._extract_mirrored_tables(
                         item_id, full_def, tables, mirror_edges, external_sources, external_edges
                     )
+            
+            # NEW (opt-in): Handle PowerBI/Dataset source types for Report -> SemanticModel edges
+            elif include_all_items and source_type == 'PowerBI' and item_type == 'Report':
+                # For Reports, the Connection ID or Source Connection is the dataset ID
+                dataset_id = record.get('Connection ID') or record.get('Source Connection')
+                if dataset_id and isinstance(dataset_id, str) and dataset_id in known_item_ids:
+                    reads_from_edges.append({
+                        'report_id': item_id,
+                        'dataset_id': dataset_id
+                    })
         
         # Load into Neo4j
         logger.info(f"Loading {len(workspaces)} workspaces...")
@@ -463,6 +483,12 @@ class LineageDataLoader:
                            for e in shortcut_table_edges]
             self.client.run_batch_write(self.CREATE_TABLE_SOURCE_EDGE, source_edges)
         summary['shortcut_table_edges'] = len(shortcut_table_edges)
+        
+        # NEW (opt-in): Load reads_from edges (Report -> SemanticModel)
+        if reads_from_edges:
+            logger.info(f"Creating {len(reads_from_edges)} report->dataset edges...")
+            self.client.run_batch_write(self.CREATE_READS_FROM_EDGE, reads_from_edges)
+        summary['reads_from_edges'] = len(reads_from_edges)
         
         summary['load_time_ms'] = int((time.time() - start_time) * 1000)
         logger.info(f"Load complete in {summary['load_time_ms']}ms")
