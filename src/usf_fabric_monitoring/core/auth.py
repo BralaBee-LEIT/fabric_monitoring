@@ -125,7 +125,7 @@ class FabricAuthenticator:
 
         except Exception as e:
             self.logger.error(f"Failed to acquire Fabric token: {str(e)}")
-            raise ClientAuthenticationError(f"Fabric authentication failed: {str(e)}")
+            raise ClientAuthenticationError(f"Fabric authentication failed: {str(e)}") from e
 
     def get_powerbi_token(self, force_refresh: bool = False) -> str:
         """
@@ -174,7 +174,7 @@ class FabricAuthenticator:
 
         except Exception as e:
             self.logger.error(f"Failed to acquire Power BI token: {str(e)}")
-            raise ClientAuthenticationError(f"Power BI authentication failed: {str(e)}")
+            raise ClientAuthenticationError(f"Power BI authentication failed: {str(e)}") from e
 
     def get_fabric_headers(self) -> dict[str, str]:
         """Get HTTP headers for Fabric API requests"""

@@ -6,6 +6,11 @@ from typing import Any
 
 import pandas as pd
 
+from usf_fabric_monitoring.core.data_loader import load_activities_from_directory
+from usf_fabric_monitoring.core.logger import setup_logging
+from usf_fabric_monitoring.core.monitor_hub_reporter_clean import MonitorHubCSVReporter
+from usf_fabric_monitoring.core.utils import resolve_path
+
 # Opt into the future pandas behaviour to suppress FutureWarning on fillna
 pd.set_option("future.no_silent_downcasting", True)
 
@@ -46,12 +51,6 @@ def _get_item_details_extraction():
             "extract_fabric_item_details", "run_item_details_extraction"
         )
     return _run_item_details_extraction
-
-
-from usf_fabric_monitoring.core.data_loader import load_activities_from_directory
-from usf_fabric_monitoring.core.logger import setup_logging
-from usf_fabric_monitoring.core.monitor_hub_reporter_clean import MonitorHubCSVReporter
-from usf_fabric_monitoring.core.utils import resolve_path
 
 
 class MonitorHubPipeline:
@@ -258,18 +257,17 @@ class MonitorHubPipeline:
             # Calculate duration statistics
             durations = [a.get("duration_seconds", 0) for a in activities]
             total_duration_seconds = sum(durations)
-            avg_duration_seconds = total_duration_seconds / total_activities if total_activities > 0 else 0
+            total_duration_seconds / total_activities if total_activities > 0 else 0
         else:
             failed_activities = 0
             success_rate = 0
             total_duration_seconds = 0
-            avg_duration_seconds = 0
 
         # Get unique counts
-        workspaces = set(a.get("workspace_id") for a in activities if a.get("workspace_id"))
-        users = set(a.get("submitted_by") for a in activities if a.get("submitted_by"))
-        domains = set(a.get("domain") for a in activities if a.get("domain"))
-        item_types = set(a.get("item_type") for a in activities if a.get("item_type"))
+        workspaces = {a.get("workspace_id") for a in activities if a.get("workspace_id")}
+        users = {a.get("submitted_by") for a in activities if a.get("submitted_by")}
+        domains = {a.get("domain") for a in activities if a.get("domain")}
+        item_types = {a.get("item_type") for a in activities if a.get("item_type")}
 
         summary = {
             "pipeline_execution": {

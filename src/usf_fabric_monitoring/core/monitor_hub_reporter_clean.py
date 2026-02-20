@@ -384,7 +384,7 @@ class MonitorHubCSVReporter:
         # Do NOT fill duration with 0, as it skews averages. Keep as NaN.
 
         # Aggregate
-        summary = (
+        (
             df.groupby(["submitted_by", "item_name", "item_type", "status"])
             .agg(
                 count=("activity_id", "count"),
@@ -419,7 +419,6 @@ class MonitorHubCSVReporter:
             last_run = group["start_time"].max()
 
             # Identify most common error if any failures
-            error_msg = ""
             if failed_runs > 0:
                 # If we had error messages in the logs, we'd extract them here.
                 # For now, we just note it failed.

@@ -74,7 +74,7 @@ class AdminScannerClient:
             except requests.RequestException as e:
                 logger.error(f"Request failed: {str(e)}")
                 if attempt == self.max_retries - 1:
-                    raise AdminScannerError(f"Request failed after {self.max_retries} retries: {e}")
+                    raise AdminScannerError(f"Request failed after {self.max_retries} retries: {e}") from e
                 time.sleep(self.base_delay * (2**attempt))
 
         return None

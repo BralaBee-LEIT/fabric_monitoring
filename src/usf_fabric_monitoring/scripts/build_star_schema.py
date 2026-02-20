@@ -97,7 +97,6 @@ Examples:
     args = parser.parse_args()
 
     # Setup logging
-    log_level = "DEBUG" if args.verbose else "INFO"
     logger = setup_logging(name="build_star_schema", log_file="logs/star_schema_build.log")
 
     # Handle DDL-only mode

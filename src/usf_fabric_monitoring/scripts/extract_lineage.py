@@ -496,7 +496,7 @@ class LineageExtractor:
                     datasources = self.get_dataset_datasources(ws_id, model_id)
 
                     # Extract source types from datasources
-                    source_types = list(set(ds.get("datasourceType", "Unknown") for ds in datasources))
+                    source_types = list({ds.get("datasourceType", "Unknown") for ds in datasources})
                     source_connections = [ds.get("connectionDetails", {}) for ds in datasources]
 
                     lineage_data.append(
@@ -540,7 +540,7 @@ class LineageExtractor:
                     # Get datasources for the dataflow
                     datasources = self.get_dataflow_datasources(ws_id, df_id)
 
-                    source_types = list(set(ds.get("datasourceType", "Unknown") for ds in datasources))
+                    source_types = list({ds.get("datasourceType", "Unknown") for ds in datasources})
 
                     lineage_data.append(
                         {
