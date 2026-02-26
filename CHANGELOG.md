@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Ruff lint compliance**: Fixed 466 lint errors across `src/`, `scripts/`, and `tests/` — bulk auto-fixed W293 (whitespace), I001 (unsorted imports), F541 (f-string placeholders), UP006/UP035 (deprecated annotations), F401 (unused imports); manually suppressed E402 (module-import-not-at-top) in scripts with required `sys.path` setup; resolved B018 (useless expressions) in test assertions
+- **Ruff format compliance**: Applied `ruff format` to 15 files for consistent code style
+
 ## 0.3.36 (February 2026) - Audit Phase 1: Exception Refinement & Security Hardening
 
 ### Changed

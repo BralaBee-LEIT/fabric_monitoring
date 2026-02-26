@@ -16,33 +16,34 @@ from usf_fabric_monitoring.core.workspace_access_enforcer import WorkspaceAccess
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    stream=sys.stdout
+    level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s", stream=sys.stdout
 )
 logger = logging.getLogger("sp_auditor")
+
 
 class ServicePrincipalAuditor(WorkspaceAccessEnforcer):
     """
     Audits workspaces to check if the Service Principal is a member.
     Reuses fetching logic from WorkspaceAccessEnforcer.
     """
+
     def __init__(self, sp_id: str, **kwargs):
         # Remove access_requirements from kwargs if present to avoid conflict
-        kwargs.pop('access_requirements', None)
+        kwargs.pop("access_requirements", None)
 
         # Pass dummy requirement to satisfy base class validation
         from usf_fabric_monitoring.core.workspace_access_enforcer import AccessRequirement
+
         dummy = AccessRequirement(object_id="dummy", display_name="Audit", role="Viewer")
 
         super().__init__(access_requirements=[dummy], **kwargs)
         self.sp_id = sp_id.lower()
 
     def audit(self, max_workspaces: int | None = None) -> list[dict[str, Any]]:
-        logger.info("="*60)
+        logger.info("=" * 60)
         logger.info("Starting Service Principal Access Audit")
         logger.info(f"Target SP Identifier: {self.sp_id}")
-        logger.info("="*60)
+        logger.info("=" * 60)
 
         # 1. Fetch all workspaces
         try:
@@ -73,7 +74,7 @@ class ServicePrincipalAuditor(WorkspaceAccessEnforcer):
             ws_name = ws.get("name")
 
             if i % 10 == 0:
-                print(f"   ⏳ Audited {i}/{len(workspaces)} workspaces...", end='\r', flush=True)
+                print(f"   ⏳ Audited {i}/{len(workspaces)} workspaces...", end="\r", flush=True)
 
             try:
                 users = self._fetch_workspace_users(ws_id)
@@ -97,27 +98,32 @@ class ServicePrincipalAuditor(WorkspaceAccessEnforcer):
                         current_role = user.get("groupUserAccessRight") or user.get("role")
                         break
 
-                results.append({
-                    "workspace_id": ws_id,
-                    "workspace_name": ws_name,
-                    "is_member": is_member,
-                    "current_role": current_role,
-                    "capacity_id": ws.get("capacityId"),
-                    "source": ws.get("source")
-                })
+                results.append(
+                    {
+                        "workspace_id": ws_id,
+                        "workspace_name": ws_name,
+                        "is_member": is_member,
+                        "current_role": current_role,
+                        "capacity_id": ws.get("capacityId"),
+                        "source": ws.get("source"),
+                    }
+                )
 
             except Exception as e:
                 logger.warning(f"Failed to audit workspace {ws_name} ({ws_id}): {e}")
-                results.append({
-                    "workspace_id": ws_id,
-                    "workspace_name": ws_name,
-                    "is_member": False,
-                    "current_role": "Error",
-                    "error": str(e)
-                })
+                results.append(
+                    {
+                        "workspace_id": ws_id,
+                        "workspace_name": ws_name,
+                        "is_member": False,
+                        "current_role": "Error",
+                        "error": str(e),
+                    }
+                )
 
         print(f"   ✅ Audited {len(workspaces)} workspaces total.          ")
         return results
+
 
 def main():
     load_dotenv()
@@ -138,13 +144,14 @@ def main():
     # We pass dummy requirements because the base class expects them, but we won't use them.
     # We construct a dummy AccessRequirement just to satisfy the init.
     from usf_fabric_monitoring.core.workspace_access_enforcer import AccessRequirement
+
     dummy_req = AccessRequirement(object_id="dummy", display_name="dummy", role="Viewer")
 
     auditor = ServicePrincipalAuditor(
         sp_id=sp_id,
         access_requirements=[dummy_req],
-        api_preference="auto", # Use auto to try both APIs
-        exclude_personal_workspaces=True # Usually want to skip personal
+        api_preference="auto",  # Use auto to try both APIs
+        exclude_personal_workspaces=True,  # Usually want to skip personal
     )
 
     # Run Audit
@@ -160,20 +167,32 @@ def main():
     missing_count = 0
 
     with open(csv_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["workspace_id", "workspace_name", "is_member", "current_role", "capacity_id", "source", "error"])
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "workspace_id",
+                "workspace_name",
+                "is_member",
+                "current_role",
+                "capacity_id",
+                "source",
+                "error",
+            ],
+        )
         writer.writeheader()
         for row in results:
             writer.writerow(row)
             if not row["is_member"]:
                 missing_count += 1
 
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("Audit Complete.")
     logger.info(f"Total Workspaces: {len(results)}")
     logger.info(f"Access MISSING: {missing_count}")
     logger.info(f"Access CONFIRMED: {len(results) - missing_count}")
     logger.info(f"Report saved to: {csv_path}")
-    logger.info("="*60)
+    logger.info("=" * 60)
+
 
 if __name__ == "__main__":
     main()

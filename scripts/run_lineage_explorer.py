@@ -3,6 +3,7 @@
 Quick launcher for the Lineage Explorer.
 Supports both JSON (preferred) and CSV (legacy) lineage files.
 """
+
 import sys
 from pathlib import Path
 
@@ -33,5 +34,6 @@ if not data_file:
 
 print(f"Loading: {data_file}")
 
-from lineage_explorer import run_server
+from lineage_explorer import run_server  # noqa: E402
+
 run_server(csv_path=str(data_file), host="127.0.0.1", port=8000)

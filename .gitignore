@@ -60,3 +60,4 @@ htmlcov/
 # Fabric/Synapse paths (when mounted locally)
 /lakehouse/
 
+.claude/
