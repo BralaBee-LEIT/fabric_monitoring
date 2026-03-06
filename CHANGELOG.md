@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Ruff lint compliance**: Fixed 466 lint errors across `src/`, `scripts/`, and `tests/` — bulk auto-fixed W293 (whitespace), I001 (unsorted imports), F541 (f-string placeholders), UP006/UP035 (deprecated annotations), F401 (unused imports); manually suppressed E402 (module-import-not-at-top) in scripts with required `sys.path` setup; resolved B018 (useless expressions) in test assertions
+- **Ruff format compliance**: Applied `ruff format` to 15 files for consistent code style
+
+## 0.3.36 (February 2026) - Audit Phase 1: Exception Refinement & Security Hardening
+
+### Changed
+
+- **Exception handling refinement** (`scripts/extract_lineage.py`, `src/.../extract_lineage.py`):
+  - Replaced 27+ blanket `except Exception` catches with specific types:
+    - `requests.RequestException` for HTTP failures
+    - `json.JSONDecodeError` for JSON parsing
+    - `KeyError`, `ValueError`, `TypeError` for data processing
+    - `UnicodeDecodeError` for payload decoding
+  - Changed `raise Exception("Authentication failed")` → `raise RuntimeError("Authentication failed")` in `LineageExtractor` and `HybridLineageExtractor`
+  - One intentional `except Exception` retained in `HybridLineageExtractor._run_scanner()` as a deliberate resilient fallback after specific `AdminScannerError` catch
+
+### Security
+
+- **Removed hardcoded Neo4j credentials** (`lineage_explorer/test_neo4j_queries.py`):
+  - Connection now reads `NEO4J_URI` and `NEO4J_PASSWORD` from environment variables
+  - Fallback defaults: `bolt://localhost:7687` for URI, `changeme_in_production` for password
+- **Docker hardening** (`lineage_explorer/docker-compose.yml`):
+  - Changed `NEO4J_AUTH` from default-password fallback (`:-`) to mandatory (`?:`) syntax
+  - `NEO4J_PASSWORD` must now be explicitly set before `docker-compose up`
+  - Fixed stale path comment in Usage section
+
+### Fixed
+
+- **Test assertion** (`tests/test_lineage_extraction.py`):
+  - `test_init_auth_failure` now correctly asserts `RuntimeError` instead of generic `Exception`
+
+### Verified
+
+- All 204 tests pass with zero regressions
+
+---
+
 ## 0.3.35 (February 2026) - Lineage Explorer Detail Panels & Table Health Dashboard
 
 ### Enhanced

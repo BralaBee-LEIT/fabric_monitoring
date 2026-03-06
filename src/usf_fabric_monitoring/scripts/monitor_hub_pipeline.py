@@ -19,13 +19,12 @@ Usage:
 import argparse
 import os
 
-# Load environment variables
 from dotenv import load_dotenv
 
-load_dotenv()
-
-# Import from parent package (now inside usf_fabric_monitoring.scripts)
 from usf_fabric_monitoring.core.pipeline import MonitorHubPipeline
+
+# Load environment variables
+load_dotenv()
 
 
 def main():

@@ -111,7 +111,7 @@ class TestCircuitBreaker:
         cb.record_failure()
         time.sleep(0.02)
 
-        cb.state  # Trigger state check
+        _ = cb.state  # Trigger state check
         assert cb._state == CircuitState.HALF_OPEN
 
         cb.record_success()
@@ -126,7 +126,7 @@ class TestCircuitBreaker:
 
         cb.record_failure()
         time.sleep(0.02)
-        cb.state  # Trigger transition to HALF_OPEN
+        _ = cb.state  # Trigger transition to HALF_OPEN
 
         cb.record_failure()
         assert cb._state == CircuitState.OPEN

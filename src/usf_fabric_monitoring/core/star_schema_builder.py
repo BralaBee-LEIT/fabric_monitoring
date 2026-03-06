@@ -48,10 +48,10 @@ DDL_FACT_ACTIVITY = """
 CREATE TABLE IF NOT EXISTS fact_activity (
     -- Surrogate Keys
     activity_sk BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    
+
     -- Natural/Business Keys
     activity_id STRING NOT NULL,
-    
+
     -- Foreign Keys to Dimensions
     date_sk INT,                    -- FK to dim_date
     time_sk INT,                    -- FK to dim_time
@@ -60,12 +60,12 @@ CREATE TABLE IF NOT EXISTS fact_activity (
     user_sk INT,                    -- FK to dim_user
     activity_type_sk INT,           -- FK to dim_activity_type
     status_sk INT,                  -- FK to dim_status
-    
+
     -- Degenerate Dimensions (transaction-specific)
     job_instance_id STRING,
     root_activity_id STRING,
     invoke_type STRING,             -- Manual, Scheduled, etc.
-    
+
     -- Measures
     duration_seconds DOUBLE,
     duration_minutes DOUBLE,
@@ -74,12 +74,12 @@ CREATE TABLE IF NOT EXISTS fact_activity (
     is_success INT,                 -- 1/0 for easy aggregation
     is_long_running INT,            -- 1/0 flag for duration > threshold
     record_count INT DEFAULT 1,     -- For counting in aggregations
-    
+
     -- Audit Columns
     source_system STRING DEFAULT 'fabric_monitor_hub',
     extracted_at TIMESTAMP,
     loaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
+
     -- Partitioning/Clustering hints
     activity_date DATE              -- For partitioning
 ) USING DELTA
@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS dim_workspace (
     domain STRING,                          -- Inferred business domain
     location STRING,                        -- Inferred location/region
     environment STRING,                     -- DEV, TEST, UAT, PRD (inferred)
-    
+
     -- SCD Type 2 tracking
     is_current BOOLEAN DEFAULT TRUE,
     effective_from DATE,
@@ -156,12 +156,12 @@ CREATE TABLE IF NOT EXISTS dim_item (
     is_fabric_native BOOLEAN,               -- True for Fabric-only items
     workspace_id STRING,                    -- For joining
     workspace_name STRING,
-    
+
     -- Source lineage (for mirrored databases)
     source_type STRING,                     -- Snowflake, AzureSQL, etc.
     source_database STRING,
     source_connection_id STRING,
-    
+
     -- SCD Type 2 tracking
     is_current BOOLEAN DEFAULT TRUE,
     effective_from DATE,
@@ -179,11 +179,11 @@ CREATE TABLE IF NOT EXISTS dim_user (
     user_type STRING,                       -- User, ServicePrincipal, System
     domain STRING,                          -- Inferred from UPN
     department STRING,                      -- If available from directory
-    
+
     -- Risk profiling (updated by analysis)
     risk_level STRING DEFAULT 'Low',        -- Low, Medium, High
     activity_tier STRING,                   -- Power User, Regular, Occasional
-    
+
     -- SCD Type 2 tracking
     is_current BOOLEAN DEFAULT TRUE,
     effective_from DATE,
@@ -223,27 +223,27 @@ CREATE TABLE IF NOT EXISTS fact_daily_metrics (
     workspace_sk INT,
     domain STRING,
     item_type STRING,
-    
+
     -- Aggregated Measures
     total_activities INT,
     successful_activities INT,
     failed_activities INT,
     in_progress_activities INT,
     cancelled_activities INT,
-    
+
     success_rate DOUBLE,
     failure_rate DOUBLE,
-    
+
     total_duration_seconds DOUBLE,
     avg_duration_seconds DOUBLE,
     max_duration_seconds DOUBLE,
     min_duration_seconds DOUBLE,
-    
+
     unique_users INT,
     unique_items INT,
-    
+
     long_running_count INT,                 -- Activities > threshold
-    
+
     -- Audit
     aggregated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) USING DELTA
@@ -256,24 +256,24 @@ CREATE TABLE IF NOT EXISTS fact_user_metrics (
     metric_sk BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     date_sk INT NOT NULL,
     user_sk INT NOT NULL,
-    
+
     total_activities INT,
     successful_activities INT,
     failed_activities INT,
     success_rate DOUBLE,
-    
+
     total_duration_seconds DOUBLE,
     avg_duration_seconds DOUBLE,
-    
+
     unique_workspaces INT,
     unique_items INT,
     unique_item_types INT,
-    
+
     -- Risk indicators
     failure_rate_7d_avg DOUBLE,
     activity_count_7d_avg DOUBLE,
     risk_score DOUBLE,
-    
+
     aggregated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) USING DELTA
 PARTITIONED BY (date_sk);
@@ -692,7 +692,7 @@ class ItemDimensionBuilder(DimensionBuilder):
 
         # Enrich with lineage data if available
         if lineage_data:
-            lineage_lookup = {l.get("Item ID"): l for l in lineage_data if l.get("Item ID")}
+            lineage_lookup = {item.get("Item ID"): item for item in lineage_data if item.get("Item ID")}
             for item_id, item in item_data.items():
                 if item_id in lineage_lookup:
                     lineage = lineage_lookup[item_id]
@@ -1555,7 +1555,7 @@ fact_activity[status_sk] → dim_status[status_sk]
 SAMPLE QUERIES:
 ---------------
 -- Failure rate by workspace over last 7 days
-SELECT 
+SELECT
     w.workspace_name,
     SUM(f.is_failed) as failures,
     SUM(f.record_count) as total,
@@ -1568,7 +1568,7 @@ GROUP BY w.workspace_name
 ORDER BY failure_rate DESC;
 
 -- Top 10 longest running items
-SELECT 
+SELECT
     i.item_name,
     i.item_type,
     w.workspace_name,
@@ -1582,7 +1582,7 @@ ORDER BY total_hours DESC
 LIMIT 10;
 
 -- Activity by time of day (business vs off-hours)
-SELECT 
+SELECT
     t.time_period,
     t.is_business_hours,
     COUNT(*) as activity_count,

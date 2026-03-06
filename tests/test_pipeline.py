@@ -15,9 +15,9 @@ load_dotenv()
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
-from usf_fabric_monitoring.core.auth import create_authenticator_from_env
-from usf_fabric_monitoring.core.extractor import FabricDataExtractor
-from usf_fabric_monitoring.core.monitor_hub_reporter_clean import MonitorHubCSVReporter
+from usf_fabric_monitoring.core.auth import create_authenticator_from_env  # noqa: E402
+from usf_fabric_monitoring.core.extractor import FabricDataExtractor  # noqa: E402
+from usf_fabric_monitoring.core.monitor_hub_reporter_clean import MonitorHubCSVReporter  # noqa: E402
 
 
 @pytest.mark.integration
@@ -68,7 +68,7 @@ def test_pipeline():
 
         # Create comprehensive test data for demonstration
         # Load max days from environment
-        max_days = int(os.getenv("MAX_HISTORICAL_DAYS", "28"))
+        int(os.getenv("MAX_HISTORICAL_DAYS", "28"))
         default_days = int(os.getenv("DEFAULT_ANALYSIS_DAYS", "7"))
 
         data = {
