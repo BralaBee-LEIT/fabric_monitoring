@@ -297,7 +297,7 @@ After `pip install -e .` or `make install`, these commands become available:
 
 This release adds detail panels, table health dashboards, and enhanced tooltips to the Lineage Explorer.
 
-### 🔍 **Lineage Explorer v0.3.35**
+### 🔍 **Lineage Explorer v0.3.36**
 
 - **Detail Panels**: Click-to-inspect nodes with table footprint across all graph views
 - **Table Health Dashboard**: Orphan tables, high-dependency tables, cross-workspace patterns with KPI cards
