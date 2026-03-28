@@ -2,7 +2,7 @@
 
 A comprehensive Python-based solution for monitoring, analyzing, and governing Microsoft Fabric workspaces. This project provides tools for historical activity analysis (Monitor Hub), automated security group enforcement, and star schema analytics for business intelligence.
 
-> **Current Version: 0.3.36** - Audit Phase 1: Exception refinement & security hardening  
+> **Current Version: 0.3.37** - Data Quality: Field mapping, activity ID backfill & Fabric deployment fix
 > See [CHANGELOG.md](CHANGELOG.md) for release notes | [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines | [SECURITY.md](SECURITY.md) for security policies
 >
 ## 🚀 Key Features
@@ -293,17 +293,19 @@ After `pip install -e .` or `make install`, these commands become available:
 | `usf-star-schema` | `scripts.build_star_schema` | Build dimensional schema |
 | `usf-validate-config` | `scripts.validate_config` | Validate JSON configs |
 
-## ⚠️ Recent Updates (v0.3.36 - Current Release)
+## ⚠️ Recent Updates (v0.3.37 - Current Release)
 
-This release adds detail panels, table health dashboards, and enhanced tooltips to the Lineage Explorer.
+This release fixes data quality issues in the monitoring pipeline and adds Fabric deployment compatibility.
 
-### 🔍 **Lineage Explorer v0.3.36**
+### 🔧 **Data Quality (v0.3.37)**
 
-- **Detail Panels**: Click-to-inspect nodes with table footprint across all graph views
-- **Table Health Dashboard**: Orphan tables, high-dependency tables, cross-workspace patterns with KPI cards
-- **Enhanced Tooltips**: Workspace name, connection counts, table hints for Lakehouse/MirroredDatabase items
-- **8 New Query Explorer Queries**: Table status distribution, highest row counts, orphan detection, blast radius analysis
-- **5 Graph Pages**: Main graph, Elements graph, Tables graph, Dashboard, Query Explorer
+- **activity_id backfill**: `event_id` (API `Id` field) now backfills empty `activity_id` — population improved from 11% to 100%
+- **invoke_type / root_activity_id**: Job Instance API fields now correctly mapped through Smart Merge (were silently dropped due to camelCase mismatch)
+- **4 new columns**: `event_id`, `invoke_type`, `root_activity_id`, `job_instance_id` in activities_master CSV (26-column schema)
+- **Fabric-compatible script discovery**: `_find_scripts_dir()` probes repo layout, cwd, Lakehouse Files, and `USF_SCRIPTS_DIR` env var
+- **Parquet regeneration cell**: Rebuild reports from existing data without API re-extraction
+- **180-day data retention**: Automatic cleanup of raw data files older than 180 days
+- **6 Graph Pages**: Main graph, Elements graph, Tables graph, Table Impact, Dashboard, Query Explorer
 
 Previous highlights:
 
@@ -357,7 +359,7 @@ To run this solution directly within a Microsoft Fabric Notebook:
     make build
     ```
 
-    This will generate a file like `dist/usf_fabric_monitoring-0.3.36-py3-none-any.whl`.
+    This will generate a file like `dist/usf_fabric_monitoring-0.3.37-py3-none-any.whl`.
 
 2. **Upload to Fabric**:
     - Navigate to your Fabric Workspace.

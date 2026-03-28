@@ -1,6 +1,6 @@
 # USF Fabric Monitoring — Terminology Dictionary
 
-**Version**: 0.3.36 | **Last Updated**: 2026-02-10
+**Version**: 0.3.37 | **Last Updated**: 2026-03-28
 
 This glossary defines key terms used throughout the project. Terms are organized by domain.
 
